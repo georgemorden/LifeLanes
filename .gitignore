@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+vite.config.d.ts
+.DS_Store
+.env
+.env.*
+coverage/
+.vite/
