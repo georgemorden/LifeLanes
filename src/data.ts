@@ -2,10 +2,8 @@ import {
   KANBAN_COLUMNS,
   LANE_COLORS,
   type BoardColumn,
-  type BoardItem,
   type BoardState,
   type ColumnId,
-  type DraftNote,
   type LaneColor,
   type LifeLane,
   type PresetId,
@@ -31,7 +29,7 @@ export const DEFAULT_LANES = [
 ];
 
 const DEMO_DRAFTS = [
-  "Create a calmer weekly reset that covers calendar, money, training, meals, and one small admin task.",
+  "Plan a weekly reset for calendar, money, training, meals, and one small admin task.",
   "Review career direction and list roles that fit operations, creative work, project coordination, and digital change.",
   "Build a simple evidence bank for applications, interviews, portfolio notes, and useful examples.",
   "Plan a low-friction fitness week with enough recovery to keep momentum sustainable.",
@@ -40,7 +38,7 @@ const DEMO_DRAFTS = [
   "Create a monthly money check that feels practical rather than restrictive.",
   "Make a shortlist of learning goals that support the next career step.",
   "Reconnect with friends in a way that feels easy, not performative.",
-  "Design the app demo so it feels polished, realistic, and calm.",
+  "Try the guided demo to see capture, sorting, lanes, movement, and achievements.",
 ];
 
 const DEMO_ITEMS: Array<{
@@ -219,6 +217,44 @@ const DEMO_ITEMS: Array<{
   },
 ];
 
+const DEMO_ITEM_TITLES = new Set(DEMO_ITEMS.map((item) => item.title));
+const DEMO_DRAFT_TEXT = new Set(DEMO_DRAFTS);
+const LEGACY_DEMO_ITEM_TITLES = new Set([
+  "Explore stronger-fit roles",
+  "Refresh portfolio positioning",
+  "Build interview story bank",
+  "Research an Agile certification",
+  "Compare short course options",
+  "Save useful learning resources",
+  "Build consistent training rhythm",
+  "Future race idea",
+  "Recovery habit",
+  "Book check-in",
+  "Protect low-energy day",
+  "Mobility routine idea",
+  "Emergency fund milestone",
+  "Budget review",
+  "Housing deposit thinking",
+  "EP idea",
+  "Artwork concept",
+  "Title shortlist",
+  "Portfolio app idea",
+  "Case study polish",
+  "README improvement",
+  "Catch up with friend",
+  "Plan low-pressure weekend thing",
+  "Random thought to revisit",
+  "Interesting app idea",
+  "Article or video to save",
+  "Course to maybe take",
+  "Future project concept",
+  "Long-term running goal",
+  "Low-pressure weekend plan",
+  "Training rhythm",
+  "Recovery habit tested",
+  "Long-term course idea",
+]);
+
 export function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
 }
@@ -265,32 +301,6 @@ export function createDefaultColumns(): BoardColumn[] {
   }));
 }
 
-function createDraft(text: string): DraftNote {
-  const stamp = nowStamp();
-  return {
-    id: createId("draft"),
-    text,
-    createdAt: stamp,
-    updatedAt: stamp,
-  };
-}
-
-function createItem(input: (typeof DEMO_ITEMS)[number], lanes: LifeLane[]): BoardItem {
-  const stamp = nowStamp();
-  const lane = lanes.find((candidate) => candidate.name === input.lane) ?? lanes[0];
-  return {
-    id: createId("item"),
-    title: input.title,
-    note: input.note,
-    column: input.column,
-    laneId: lane.id,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    createdAt: stamp,
-    updatedAt: stamp,
-  };
-}
-
 export function createBoardState(preset: PresetId = "draft"): BoardState {
   const columns = createDefaultColumns();
   const lanes = createDefaultLanes();
@@ -299,7 +309,13 @@ export function createBoardState(preset: PresetId = "draft"): BoardState {
     defaultLaneVersion: DEFAULT_LANE_VERSION,
     columns,
     lanes,
-    drafts: preset === "demo" ? DEMO_DRAFTS.map(createDraft) : [],
-    items: preset === "demo" ? DEMO_ITEMS.map((item) => createItem(item, lanes)) : [],
+    drafts: [],
+    items: [],
   };
+}
+
+export function isDemoLikeState(state: Pick<BoardState, "drafts" | "items">) {
+  const demoItemHits = state.items.filter((item) => DEMO_ITEM_TITLES.has(item.title) || LEGACY_DEMO_ITEM_TITLES.has(item.title)).length;
+  const demoDraftHits = state.drafts.filter((draft) => DEMO_DRAFT_TEXT.has(draft.text)).length;
+  return demoItemHits >= 4 || demoDraftHits >= 3;
 }

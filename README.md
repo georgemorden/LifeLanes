@@ -1,37 +1,56 @@
 # Life Lanes
 
-Life Lanes is a calm personal board for organising the things on your mind without turning your life into a corporate task tracker.
+Life Lanes is a calm, local-first board for turning brain dumps into a focused life map.
 
-It gives you two focused spaces:
+It is built for the moments when priorities are scattered across work, money, health, learning, admin, ideas, and everything in between. Capture what is on your mind, sort it into the right life area, and keep a clear view of what is active, parked, or complete.
 
-- **Brain Dump** for quickly capturing notes, ideas, reminders, loose thoughts, and open loops.
-- **My Life Lanes** for turning those notes into a simple board organised by state and area of life.
+No account. No cloud. No team workspace. No productivity-bro noise.
 
-The board is built around a lightweight idea: your life has different lanes, and each lane can contain things that are active, waiting, finished, or parked for later.
+## The Idea
 
-## What It Helps With
+Life Lanes has three focused spaces:
 
-- Capture thoughts before they become mental clutter.
-- See what you are actively doing, what is next, what is done, and what is parked.
-- Group priorities by life area such as Career, Fitness, Finance, Creative, Social, Health, Adventure, and Ideas.
-- Keep future options without pretending they are urgent commitments.
-- Reorder items by drag and drop when your priorities shift.
-- Keep everything local to your browser.
+- **Brain Dump**: capture loose thoughts quickly before they become mental clutter.
+- **My Life Lanes**: a compact personal board for active priorities.
+- **Achievements**: a lightweight record of what has moved through.
 
-## How It Works
+The board uses simple states such as Doing, To Do, and Parked. Inside each state, items group into Life Lanes such as Career, Fitness, Finance, Creative, Health, Social, Travel, and Ideas.
 
-Start in **Brain Dump** and write whatever is on your mind.
+That makes it feel less like a task manager and more like a personal source of truth.
 
-When a note is ready, push it to **My Life Lanes** and choose:
+## Guided Demo
 
-- the state it belongs in, such as Doing, To Do, Done, or Parked
-- the life lane/tag it belongs to, such as Career, Fitness, Finance, or Creative
+The Demo board includes a guided walkthrough that shows the intended flow:
 
-Inside the board, each state groups items into compact sub-lanes by tag. This makes it easier to see not only what is moving, but which areas of life are getting attention.
+1. Three separate Brain Dump notes appear:
+   - Career: complete a project management certification
+   - Fitness: build a 3-day gym routine
+   - Finance: save £500 for a holiday fund
+2. The highlighted Capture button moves them into Triage.
+3. The highlighted Sort button places them into the right Life Lanes automatically.
+4. The board demonstrates custom lanes, grouped cards, movement between states, and Achievements.
 
-## Built-In Life Lanes
+The demo is manual, so users stay in control while the app shows what to press next.
 
-Life Lanes starts with a balanced set of default tags:
+## Features
+
+- Fast Brain Dump capture
+- Manual triage from notes into board items
+- Demo-guided sorting into Career, Fitness, and Finance examples
+- Compact board with Life Lane sub-lanes inside each state
+- Rename, add, and delete board lanes
+- Rename, add, and delete Life Lane tags
+- Drag-and-drop card movement with mobile-safe controls
+- Date ranges for longer-running goals
+- Item detail view with context across lanes
+- Separate Achievements view for completed items
+- Demo board and blank personal board
+- Local browser persistence
+- Installable app metadata and offline shell
+
+## Default Life Lanes
+
+Life Lanes starts with a balanced set of tags:
 
 - Lifestyle
 - Career
@@ -48,17 +67,13 @@ Life Lanes starts with a balanced set of default tags:
 - Travel
 - Ideas
 
-You can rename, delete, or add your own lanes as your system evolves.
+You can rename, remove, or add your own.
 
 ## Privacy
 
 Life Lanes is local-first.
 
-There is no account, no server, no database, no analytics, and no cloud sync. Your board is saved in your browser using local storage.
-
-## Demo Mode
-
-Use the Demo board to see the intended flow with example items already arranged across the board. Switch back to My Life Lanes when you want a clean personal board.
+Your data is stored in your browser using local storage. There is no backend, no authentication, no database, no analytics, no payments, and no AI API.
 
 ## Run Locally
 
@@ -67,12 +82,27 @@ npm install
 npm run dev
 ```
 
-Build for production:
+Build and typecheck:
 
 ```bash
 npm run build
 ```
 
-## Product Status
+Run the TypeScript lint check:
 
-Life Lanes is an early product prototype focused on the core experience: fast capture, calm triage, life-area grouping, and a lightweight board for personal priorities.
+```bash
+npm run lint
+```
+
+## Tech
+
+- React
+- TypeScript
+- Vite
+- Local storage
+- Plain CSS
+- PWA manifest and service worker shell
+
+## Status
+
+Life Lanes is an early product prototype focused on a polished core experience: capture, triage, life-area grouping, calm board movement, and a guided demo that makes the workflow obvious.

@@ -1,4 +1,4 @@
-import { Check, GripVertical, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, GripVertical, Pencil, Play, Plus, Send, Trash2, X } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -19,7 +19,7 @@ type TriageChoice = {
   column: ColumnId;
 };
 
-type ViewId = "capture" | "board";
+type ViewId = "capture" | "board" | "achievements";
 type QuickAddDraft = { title: string; note: string; laneId: string; startDate: string; endDate: string };
 type QuickAddState = Record<string, QuickAddDraft>;
 type EditingState = Pick<BoardItem, "title" | "note" | "column" | "laneId" | "startDate" | "endDate">;
@@ -48,6 +48,157 @@ type ToastState =
   | { id: string; kind: "undo-item"; label: string; item: BoardItem; index: number }
   | { id: string; kind: "undo-draft"; label: string; draft: DraftNote; index: number }
   | { id: string; kind: "notice"; label: string };
+type DemoGuideTarget = "capture" | "triage" | "board" | "newLane" | "lanes" | "drag" | "deleteLane" | "achievements";
+type DemoGuideStep = {
+  title: string;
+  body: string;
+  view: ViewId;
+  target: DemoGuideTarget;
+};
+
+const DEMO_GUIDE_STEPS: DemoGuideStep[] = [
+  {
+    title: "Brain dump first",
+    body: "Three separate notes get typed in first. Press Capture when they are worth keeping.",
+    view: "capture",
+    target: "capture",
+  },
+  {
+    title: "Sort it",
+    body: "They wait in Triage. Press Sort and Life Lanes places them for you.",
+    view: "capture",
+    target: "triage",
+  },
+  {
+    title: "Place it",
+    body: "They become Career, Fitness, and Finance cards without manual tag picking.",
+    view: "board",
+    target: "board",
+  },
+  {
+    title: "Add a lane",
+    body: "The demo adds a temporary lane called This Week, so you can shape the board around how you think.",
+    view: "board",
+    target: "newLane",
+  },
+  {
+    title: "Life lanes appear",
+    body: "A few more cards appear across tags. Tags become mini-lanes inside each board lane.",
+    view: "board",
+    target: "lanes",
+  },
+  {
+    title: "Move by feel",
+    body: "The holiday fund card moves into Doing, like a drag action when something becomes active.",
+    view: "board",
+    target: "drag",
+  },
+  {
+    title: "Remove what you do not need",
+    body: "The temporary lane is deleted again. Life Lanes should stay flexible, not precious.",
+    view: "board",
+    target: "deleteLane",
+  },
+  {
+    title: "Keep the record",
+    body: "Completed items move into Achievements, so progress is visible without cluttering today.",
+    view: "achievements",
+    target: "achievements",
+  },
+];
+
+const DEMO_PRIMARY_ITEM_TITLE = "Holiday fund";
+const DEMO_CAPTURE_ENTRIES = [
+  { lane: "Career", text: "Complete project management certification" },
+  { lane: "Fitness", text: "Build a 3-day gym routine" },
+  { lane: "Finance", text: "Save £500 for holiday fund" },
+];
+const DEMO_CAPTURE_EXAMPLES = DEMO_CAPTURE_ENTRIES.map((entry) => entry.text);
+const DEMO_TYPED_NOTE = DEMO_CAPTURE_EXAMPLES.join("\n");
+const DEMO_DRAFT_TEXTS = new Set(DEMO_CAPTURE_EXAMPLES);
+const DEMO_TEMP_COLUMN_TITLE = "This Week";
+
+const DEMO_GUIDE_ITEMS: Array<{
+  draftText?: string;
+  title: string;
+  note: string;
+  column: ColumnId;
+  lane: string;
+  startDate?: string;
+  endDate?: string;
+}> = [
+  {
+    draftText: DEMO_CAPTURE_EXAMPLES[1],
+    title: "3-day gym routine",
+    note: "Keep it simple: one strength day, one conditioning day, one full-body session, with recovery between.",
+    column: "doing",
+    lane: "Fitness",
+  },
+  {
+    draftText: DEMO_CAPTURE_EXAMPLES[0],
+    title: "PM certification",
+    note: "Choose the project management certification that best supports the next career step.",
+    column: "todo",
+    lane: "Career",
+    endDate: "2026-09-30",
+  },
+  {
+    draftText: DEMO_CAPTURE_EXAMPLES[2],
+    title: DEMO_PRIMARY_ITEM_TITLE,
+    note: "Put aside £500 over the next few months without squeezing normal weeks.",
+    column: "todo",
+    lane: "Finance",
+    endDate: "2026-08-31",
+  },
+  {
+    title: "Career evidence bank",
+    note: "Collect examples of delivery, problem solving, and useful outcomes.",
+    column: "todo",
+    lane: "Career",
+  },
+  {
+    title: "Long-term course idea",
+    note: "Worth keeping, but not something to commit to this week.",
+    column: "parked",
+    lane: "Upskilling",
+  },
+  {
+    title: "Training rhythm",
+    note: "Keep it simple: two easy sessions, one focused effort, and recovery.",
+    column: "doing",
+    lane: "Fitness",
+  },
+  {
+    title: "Money check-in",
+    note: "Review spending, subscriptions, savings, and the next practical move.",
+    column: "todo",
+    lane: "Finance",
+  },
+  {
+    title: "Creative backlog sort",
+    note: "Separate ideas worth building soon from ideas that just need a safe place.",
+    column: "parked",
+    lane: "Creative",
+  },
+  {
+    title: "Simple budget view",
+    note: "Set up a lightweight view of regular income, bills, flexible spending, and savings.",
+    column: "done",
+    lane: "Finance",
+    endDate: "2026-06-12",
+  },
+  {
+    title: "Admin documents folder",
+    note: "Put important files into one place so they are easy to find when needed.",
+    column: "done",
+    lane: "Life Admin",
+    endDate: "2026-06-10",
+  },
+];
+
+function isDemoDraftText(text: string) {
+  return DEMO_DRAFT_TEXTS.has(text);
+}
 
 function firstLine(text: string) {
   return text.trim().split("\n").find(Boolean) ?? "Untitled Item";
@@ -97,6 +248,14 @@ function dateRangeLabel(item: Pick<BoardItem, "startDate" | "endDate">) {
   return "";
 }
 
+function isAchievementColumn(column: BoardColumn) {
+  return column.id === "done";
+}
+
+function sameDropTarget(a: DropTarget | null, b: DropTarget | null) {
+  return a?.column === b?.column && a?.laneId === b?.laneId && a?.targetId === b?.targetId && a?.placement === b?.placement;
+}
+
 function App() {
   const initialState = useMemo(() => loadState(), []);
   const [state, setState] = useState<BoardState>(initialState);
@@ -115,12 +274,16 @@ function App() {
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragGhost, setDragGhost] = useState<DragGhostState | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [activeView, setActiveView] = useState<ViewId>("board");
   const [mobileColumn, setMobileColumn] = useState<ColumnId>(initialState.columns[0]?.id ?? "doing");
   const [expandedLaneId, setExpandedLaneId] = useState<string | null>(null);
   const [expandedColumn, setExpandedColumn] = useState<ColumnId | null>(null);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [openAddColumn, setOpenAddColumn] = useState<ColumnId | null>(null);
   const [showBoardLaneComposer, setShowBoardLaneComposer] = useState(false);
+  const [demoGuideOpen, setDemoGuideOpen] = useState(false);
+  const [demoGuideStep, setDemoGuideStep] = useState(0);
   const [toast, setToast] = useState<ToastState | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const cardPositionsRef = useRef<Map<string, DOMRect>>(new Map());
@@ -133,6 +296,7 @@ function App() {
   const dragSourceRef = useRef<HTMLElement | null>(null);
   const dropTargetRef = useRef<DropTarget | null>(null);
   const pendingDragRef = useRef<PendingDragState | null>(null);
+  const demoTypingTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -207,6 +371,9 @@ function App() {
       if (dragAnimationFrameRef.current) {
         window.cancelAnimationFrame(dragAnimationFrameRef.current);
       }
+      if (demoTypingTimerRef.current) {
+        window.clearInterval(demoTypingTimerRef.current);
+      }
     },
     [],
   );
@@ -231,11 +398,49 @@ function App() {
     });
   }, [state.lanes, state.columns]);
 
+  const achievementColumns = useMemo(() => state.columns.filter(isAchievementColumn), [state.columns]);
+  const boardColumns = useMemo(() => state.columns.filter((column) => !isAchievementColumn(column)), [state.columns]);
+  const achievementColumnIds = useMemo(() => new Set(achievementColumns.map((column) => column.id)), [achievementColumns]);
+  const achievementItems = useMemo(() => state.items.filter((item) => achievementColumnIds.has(item.column)), [achievementColumnIds, state.items]);
+  const boardItems = useMemo(() => state.items.filter((item) => !achievementColumnIds.has(item.column)), [achievementColumnIds, state.items]);
+  const isDemoPreset = state.preset === "demo";
+  const activeDemoGuideStep = isDemoPreset && demoGuideOpen ? DEMO_GUIDE_STEPS[demoGuideStep] : null;
+  const demoGuideTarget = activeDemoGuideStep?.target;
+  const guidedCardId = demoGuideTarget === "drag" ? boardItems.find((item) => item.title === DEMO_PRIMARY_ITEM_TITLE)?.id : null;
+
   useEffect(() => {
-    if (!state.columns.some((column) => column.id === mobileColumn)) {
-      setMobileColumn(state.columns[0]?.id ?? "");
+    if (!boardColumns.some((column) => column.id === mobileColumn)) {
+      setMobileColumn(boardColumns[0]?.id ?? state.columns[0]?.id ?? "");
     }
-  }, [mobileColumn, state.columns]);
+  }, [boardColumns, mobileColumn, state.columns]);
+
+  useEffect(() => {
+    if (expandedItemId && !state.items.some((item) => item.id === expandedItemId)) {
+      setExpandedItemId(null);
+    }
+  }, [expandedItemId, state.items]);
+
+  useEffect(() => {
+    if (isDemoPreset) {
+      return;
+    }
+    setDemoGuideOpen(false);
+    setDemoGuideStep(0);
+  }, [isDemoPreset]);
+
+  useEffect(() => {
+    if (!activeDemoGuideStep || activeView === activeDemoGuideStep.view) {
+      return;
+    }
+    setActiveView(activeDemoGuideStep.view);
+  }, [activeDemoGuideStep, activeView]);
+
+  useEffect(() => {
+    if (!demoGuideOpen || demoGuideStep !== 0 || activeView === "capture") {
+      return;
+    }
+    setActiveView("capture");
+  }, [activeView, demoGuideOpen, demoGuideStep]);
 
   const counts = useMemo(
     () =>
@@ -246,7 +451,7 @@ function App() {
   );
 
   const setCustomState = (updater: (current: BoardState) => BoardState) => {
-    setState((current) => ({ ...updater(current), preset: "custom" }));
+    setState((current) => ({ ...updater(current), preset: current.preset === "demo" ? "demo" : "custom" }));
   };
 
   const showToast = (nextToast: ToastState, duration = 5000) => {
@@ -291,25 +496,49 @@ function App() {
     closeToast();
   };
 
-  const captureDraft = (event: FormEvent) => {
-    event.preventDefault();
-    if (!captureText.trim()) {
+  const addDraftTexts = (texts: string[], dedupe = false) => {
+    const cleanTexts = texts.map((text) => text.trim()).filter(Boolean);
+    if (!cleanTexts.length) {
       return;
     }
 
-    const stamp = nowStamp();
-    const draft: DraftNote = {
-      id: createId("draft"),
-      text: captureText.trim(),
-      createdAt: stamp,
-      updatedAt: stamp,
-    };
+    setCustomState((current) => {
+      const existingDrafts = new Set(current.drafts.map((draft) => draft.text));
+      const nextDraftTexts = dedupe ? cleanTexts.filter((text) => !existingDrafts.has(text)) : cleanTexts;
+      if (!nextDraftTexts.length) {
+        return current;
+      }
 
-    setCustomState((current) => ({
-      ...current,
-      drafts: [draft, ...current.drafts],
-    }));
+      const stamp = nowStamp();
+      return {
+        ...current,
+        drafts: [
+          ...nextDraftTexts.map((text) => ({
+            id: createId("draft"),
+            text,
+            createdAt: stamp,
+            updatedAt: stamp,
+          })),
+          ...current.drafts,
+        ],
+      };
+    });
+  };
+
+  const captureDraft = (event: FormEvent) => {
+    event.preventDefault();
+    const guidedCapture = isDemoPreset && demoGuideOpen && demoGuideStep === 0;
+    const draftTexts = guidedCapture ? DEMO_CAPTURE_EXAMPLES : [captureText.trim()];
+    if (!draftTexts.some((text) => text.trim())) {
+      return;
+    }
+
+    addDraftTexts(draftTexts, guidedCapture);
     setCaptureText("");
+    if (guidedCapture) {
+      clearDemoTyping();
+      setDemoGuideStep(1);
+    }
   };
 
   const addLane = (name: string) => {
@@ -457,15 +686,34 @@ function App() {
     setEditingColumnName("");
   };
 
-  const defaultDraftChoice = (draftId: string): TriageChoice => ({
-    laneId: triageChoices[draftId]?.laneId ?? state.lanes[0]?.id ?? "",
-    column: triageChoices[draftId]?.column ?? state.columns.find((column) => column.title.toLowerCase() === "to do")?.id ?? state.columns[0]?.id ?? "",
-  });
+  const defaultDraftChoice = (draft: DraftNote): TriageChoice => {
+    const demoInput = DEMO_GUIDE_ITEMS.find((item) => item.draftText === draft.text);
+    return {
+      laneId: triageChoices[draft.id]?.laneId ?? (demoInput ? demoLaneIdFor(state.lanes, demoInput.lane) : state.lanes[0]?.id ?? ""),
+      column:
+        triageChoices[draft.id]?.column ??
+        (demoInput ? demoColumnIdFor(state.columns, demoInput.column) : state.columns.find((column) => column.title.toLowerCase() === "to do")?.id) ??
+        state.columns[0]?.id ??
+        "",
+    };
+  };
 
   const openPushModal = (draft: DraftNote) => {
     setPushDraft(draft);
-    setPushChoice(defaultDraftChoice(draft.id));
+    setPushChoice(defaultDraftChoice(draft));
   };
+
+  const createDemoItem = (input: (typeof DEMO_GUIDE_ITEMS)[number], columns: BoardColumn[], lanes: LifeLane[], stamp: string): BoardItem => ({
+    id: createId("item"),
+    title: input.title,
+    note: input.note,
+    column: demoColumnIdFor(columns, input.column),
+    laneId: demoLaneIdFor(lanes, input.lane),
+    startDate: input.startDate,
+    endDate: input.endDate,
+    createdAt: stamp,
+    updatedAt: stamp,
+  });
 
   const sendDraftToBoard = (draft: DraftNote, choice: TriageChoice) => {
     if (!choice.column || !choice.laneId) {
@@ -565,6 +813,9 @@ function App() {
       ...current,
       items: current.items.filter((item) => item.id !== itemId),
     }));
+    if (expandedItemId === itemId) {
+      setExpandedItemId(null);
+    }
     showToast({ id: createId("undo"), kind: "undo-item", label: "Item removed.", item, index });
   };
 
@@ -634,6 +885,14 @@ function App() {
     });
   };
 
+  const setActiveDropTarget = (target: DropTarget | null) => {
+    if (sameDropTarget(dropTargetRef.current, target)) {
+      return;
+    }
+    dropTargetRef.current = target;
+    setDropTarget(target);
+  };
+
   const updateDropTargetAtPoint = (clientX: number, clientY: number) => {
     const activeId = draggingIdRef.current;
     if (!activeId) {
@@ -653,7 +912,8 @@ function App() {
 
       const rect = hoveredCard.getBoundingClientRect();
       const placement: DropPlacement = clientY > rect.top + rect.height / 2 ? "after" : "before";
-      dropTargetRef.current = { column: targetItem.column, laneId: targetItem.laneId, targetId: targetItem.id, placement };
+      const target = { column: targetItem.column, laneId: targetItem.laneId, targetId: targetItem.id, placement };
+      setActiveDropTarget(target);
       return;
     }
 
@@ -661,14 +921,37 @@ function App() {
     const laneColumn = hoveredLaneGroup?.dataset.columnId as ColumnId | undefined;
     const laneId = hoveredLaneGroup?.dataset.columnLaneId;
     if (laneColumn && laneId && columnsRef.current.some((candidate) => candidate.id === laneColumn)) {
-      dropTargetRef.current = { column: laneColumn, laneId };
+      const target = { column: laneColumn, laneId };
+      setActiveDropTarget(target);
       return;
     }
 
     const hoveredColumn = hoveredElements.map((element) => element.closest<HTMLElement>("[data-column-id]")).find(Boolean);
     const column = hoveredColumn?.dataset.columnId as ColumnId | undefined;
     if (column && columnsRef.current.some((candidate) => candidate.id === column)) {
-      dropTargetRef.current = { column };
+      const activeItem = itemsRef.current.find((item) => item.id === activeId);
+      setActiveDropTarget({ column, laneId: activeItem?.laneId });
+    }
+  };
+
+  const autoScrollDuringDrag = (clientX: number, clientY: number) => {
+    const edge = 78;
+    const maxStep = 22;
+    const board = boardRef.current;
+
+    if (board) {
+      const rect = board.getBoundingClientRect();
+      if (clientX < rect.left + edge) {
+        board.scrollLeft -= Math.min(maxStep, Math.ceil((rect.left + edge - clientX) / 4));
+      } else if (clientX > rect.right - edge) {
+        board.scrollLeft += Math.min(maxStep, Math.ceil((clientX - (rect.right - edge)) / 4));
+      }
+    }
+
+    if (clientY < edge) {
+      window.scrollBy({ top: -Math.min(maxStep, Math.ceil((edge - clientY) / 4)), left: 0 });
+    } else if (clientY > window.innerHeight - edge) {
+      window.scrollBy({ top: Math.min(maxStep, Math.ceil((clientY - (window.innerHeight - edge)) / 4)), left: 0 });
     }
   };
 
@@ -715,6 +998,7 @@ function App() {
       setDragGhost(nextGhost);
       pendingDragRef.current = null;
       updateDropTargetAtPoint(clientX, clientY);
+      autoScrollDuringDrag(clientX, clientY);
       scheduleDragGhostPaint();
       return;
     }
@@ -728,6 +1012,7 @@ function App() {
     const nextGhost = { ...activeGhost, x: clientX, y: clientY };
     dragGhostRef.current = nextGhost;
     updateDropTargetAtPoint(clientX, clientY);
+    autoScrollDuringDrag(clientX, clientY);
     scheduleDragGhostPaint();
   };
 
@@ -770,6 +1055,7 @@ function App() {
     dragSourceRef.current = null;
     pendingDragRef.current = null;
     dropTargetRef.current = null;
+    setDropTarget(null);
     setDraggingId(null);
     setDragGhost(null);
   };
@@ -793,15 +1079,72 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (draggingIdRef.current || pendingDragRef.current) {
+        finishDraggingPointer();
+        return;
+      }
+
+      if (pushDraft) {
+        setPushDraft(null);
+        setPushChoice(null);
+        return;
+      }
+
+      if (expandedItemId) {
+        setExpandedItemId(null);
+        return;
+      }
+
+      if (expandedLaneId) {
+        setExpandedLaneId(null);
+        return;
+      }
+
+      if (expandedColumn) {
+        setExpandedColumn(null);
+        return;
+      }
+
+      if (editingId) {
+        setEditingId(null);
+        setEditing(null);
+        return;
+      }
+
+      if (showBoardLaneComposer) {
+        setShowBoardLaneComposer(false);
+        setNewColumnName("");
+        return;
+      }
+
+      if (demoGuideOpen) {
+        setDemoGuideOpen(false);
+        clearDemoTyping();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [demoGuideOpen, editingId, expandedColumn, expandedItemId, expandedLaneId, pushDraft, showBoardLaneComposer]);
+
   const startDraggingItem = (event: ReactPointerEvent<HTMLElement>, itemId: string) => {
-    if (event.button !== 0 || (event.target as HTMLElement).closest("button, input, select, textarea")) {
+    const target = event.target as HTMLElement;
+    if (event.button !== 0 || (target.closest("button, input, select, textarea") && !target.closest(".drag-handle"))) {
       return;
     }
 
-    const rect = event.currentTarget.getBoundingClientRect();
+    const cardElement = event.currentTarget.closest<HTMLElement>("[data-card-id]") ?? event.currentTarget;
+    const rect = cardElement.getBoundingClientRect();
     event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     dragSourceRef.current = event.currentTarget;
-    dropTargetRef.current = null;
+    setActiveDropTarget(null);
     pendingDragRef.current = {
       itemId,
       pointerId: event.pointerId,
@@ -810,20 +1153,230 @@ function App() {
       width: rect.width,
       startX: event.clientX,
       startY: event.clientY,
-      element: event.currentTarget,
+      element: cardElement,
     };
   };
 
-  const moveDraggingItem = (event: ReactPointerEvent<HTMLElement>) => {
-    continueDraggingPointer(event.pointerId, event.clientX, event.clientY, () => event.preventDefault());
+  const clearDemoTyping = () => {
+    if (demoTypingTimerRef.current) {
+      window.clearInterval(demoTypingTimerRef.current);
+      demoTypingTimerRef.current = null;
+    }
   };
 
-  const stopDraggingItem = (event?: ReactPointerEvent<HTMLElement>) => {
-    finishDraggingPointer(event?.pointerId);
+  const typeDemoNote = (text: string) => {
+    clearDemoTyping();
+    setCaptureText("");
+
+    const startedAt = Date.now();
+    const duration = Math.min(1900, Math.max(1100, text.length * 15));
+    const renderFrame = () => {
+      const progress = Math.min(1, (Date.now() - startedAt) / duration);
+      const index = Math.max(1, Math.ceil(progress * text.length));
+      setCaptureText(text.slice(0, index));
+      if (index >= text.length) {
+        clearDemoTyping();
+      }
+    };
+
+    demoTypingTimerRef.current = window.setInterval(renderFrame, 24);
+    renderFrame();
+  };
+
+  const demoLaneIdFor = (lanes: LifeLane[], name: string) => lanes.find((lane) => lane.name === name)?.id ?? lanes[0]?.id ?? "";
+
+  const demoColumnIdFor = (columns: BoardColumn[], column: ColumnId) => (columns.some((candidate) => candidate.id === column) ? column : columns[0]?.id ?? column);
+
+  const addDemoDrafts = () => {
+    addDraftTexts(DEMO_CAPTURE_EXAMPLES, true);
+  };
+
+  const addDemoItems = (titles: string[]) => {
+    setState((current) => {
+      if (current.preset !== "demo") {
+        return current;
+      }
+
+      const stamp = nowStamp();
+      let changed = false;
+      let items = current.items;
+
+      titles.forEach((title) => {
+        const input = DEMO_GUIDE_ITEMS.find((item) => item.title === title);
+        if (!input || items.some((item) => item.title === input.title)) {
+          return;
+        }
+
+        changed = true;
+        items = [...items, createDemoItem(input, current.columns, current.lanes, stamp)];
+      });
+
+      return changed ? { ...current, items } : current;
+    });
+  };
+
+  const placeDemoDrafts = () => {
+    setState((current) => {
+      if (current.preset !== "demo") {
+        return current;
+      }
+
+      const stamp = nowStamp();
+      const demoInputs = DEMO_GUIDE_ITEMS.filter((item) => item.draftText);
+      const nextDrafts = current.drafts.filter((draft) => !isDemoDraftText(draft.text));
+      let changed = nextDrafts.length !== current.drafts.length;
+      let items = current.items;
+
+      demoInputs.forEach((input) => {
+        if (items.some((item) => item.title === input.title)) {
+          return;
+        }
+        changed = true;
+        items = [...items, createDemoItem(input, current.columns, current.lanes, stamp)];
+      });
+
+      return changed ? { ...current, drafts: nextDrafts, items } : current;
+    });
+  };
+
+  const sortDemoDraftsToBoard = () => {
+    clearDemoTyping();
+    placeDemoDrafts();
+    setActiveView("board");
+    if (isDemoPreset && demoGuideOpen) {
+      setDemoGuideStep(2);
+    }
+  };
+
+  const addTemporaryDemoLane = () => {
+    setState((current) => {
+      if (current.preset !== "demo") {
+        return current;
+      }
+
+      const existingColumn = current.columns.find((column) => column.title === DEMO_TEMP_COLUMN_TITLE);
+      const nextColumn = existingColumn ?? createColumn(DEMO_TEMP_COLUMN_TITLE);
+      const columns = existingColumn ? current.columns : [...current.columns, nextColumn];
+      const evidenceBank = DEMO_GUIDE_ITEMS.find((item) => item.title === "Career evidence bank");
+      if (!evidenceBank || current.items.some((item) => item.title === evidenceBank.title)) {
+        return existingColumn ? current : { ...current, columns };
+      }
+
+      const stamp = nowStamp();
+      return {
+        ...current,
+        columns,
+        items: [
+          ...current.items,
+          {
+            id: createId("item"),
+            title: evidenceBank.title,
+            note: evidenceBank.note,
+            column: nextColumn.id,
+            laneId: demoLaneIdFor(current.lanes, evidenceBank.lane),
+            createdAt: stamp,
+            updatedAt: stamp,
+          },
+        ],
+      };
+    });
+  };
+
+  const movePrimaryDemoItemIntoDoing = () => {
+    setState((current) => {
+      if (current.preset !== "demo") {
+        return current;
+      }
+
+      const doingColumn = demoColumnIdFor(current.columns, "doing");
+      return {
+        ...current,
+        items: current.items.map((item) =>
+          item.title === DEMO_PRIMARY_ITEM_TITLE
+            ? {
+                ...item,
+                column: doingColumn,
+                updatedAt: nowStamp(),
+              }
+            : item,
+        ),
+      };
+    });
+  };
+
+  const deleteTemporaryDemoLane = () => {
+    setState((current) => {
+      if (current.preset !== "demo") {
+        return current;
+      }
+
+      const temporaryColumn = current.columns.find((column) => column.title === DEMO_TEMP_COLUMN_TITLE);
+      if (!temporaryColumn) {
+        return current;
+      }
+
+      const todoColumn = demoColumnIdFor(current.columns, "todo");
+      return {
+        ...current,
+        columns: current.columns.filter((column) => column.id !== temporaryColumn.id),
+        items: current.items.map((item) =>
+          item.column === temporaryColumn.id
+            ? {
+                ...item,
+                column: todoColumn,
+                updatedAt: nowStamp(),
+              }
+            : item,
+        ),
+      };
+    });
+  };
+
+  const runDemoGuideStep = (step: number) => {
+    clearDemoTyping();
+
+    switch (step) {
+      case 0:
+        setActiveView("capture");
+        setCaptureText("");
+        typeDemoNote(DEMO_TYPED_NOTE);
+        break;
+      case 1:
+        setActiveView("capture");
+        setCaptureText("");
+        addDemoDrafts();
+        break;
+      case 2:
+        setActiveView("board");
+        placeDemoDrafts();
+        break;
+      case 3:
+        setActiveView("board");
+        break;
+      case 4:
+        setActiveView("board");
+        addTemporaryDemoLane();
+        addDemoItems(["Training rhythm", "Money check-in", "Long-term course idea", "Creative backlog sort"]);
+        break;
+      case 5:
+        setActiveView("board");
+        movePrimaryDemoItemIntoDoing();
+        break;
+      case 6:
+        setActiveView("board");
+        deleteTemporaryDemoLane();
+        break;
+      case 7:
+        setActiveView("achievements");
+        addDemoItems(["Simple budget view", "Admin documents folder"]);
+        break;
+      default:
+        break;
+    }
   };
 
   const loadPreset = (preset: "draft" | "demo") => {
-    const next = createBoardState(preset);
+    const next = preset === "demo" ? createBoardState("demo") : loadState();
     setState(next);
     setCaptureText("");
     setQuickAdd(createQuickAddState(next.lanes, next.columns));
@@ -832,6 +1385,39 @@ function App() {
     setEditing(null);
     setExpandedLaneId(null);
     setExpandedColumn(null);
+    setExpandedItemId(null);
+    setOpenAddColumn(null);
+    setShowBoardLaneComposer(false);
+    setNewColumnName("");
+    setEditingLaneId(null);
+    setEditingLaneName("");
+    setEditingColumnId(null);
+    setEditingColumnName("");
+    setDemoGuideOpen(false);
+    setDemoGuideStep(0);
+    setPushDraft(null);
+    setPushChoice(null);
+    clearDemoTyping();
+    pendingDragRef.current = null;
+    dropTargetRef.current = null;
+    setDropTarget(null);
+    closeToast();
+    setActiveView("board");
+    setMobileColumn(next.columns[0]?.id ?? "");
+  };
+
+  const toggleDemoGuide = () => {
+    const next = createBoardState("demo");
+    clearDemoTyping();
+    setState(next);
+    setCaptureText("");
+    setQuickAdd(createQuickAddState(next.lanes, next.columns));
+    setTriageChoices({});
+    setEditingId(null);
+    setEditing(null);
+    setExpandedLaneId(null);
+    setExpandedColumn(null);
+    setExpandedItemId(null);
     setOpenAddColumn(null);
     setShowBoardLaneComposer(false);
     setNewColumnName("");
@@ -841,14 +1427,33 @@ function App() {
     setEditingColumnName("");
     setPushDraft(null);
     setPushChoice(null);
+    setDropTarget(null);
     pendingDragRef.current = null;
     dropTargetRef.current = null;
-    closeToast();
-    setActiveView("board");
-    setMobileColumn(next.columns[0]?.id ?? "");
+    setDemoGuideOpen(true);
+    setDemoGuideStep(0);
+    runDemoGuideStep(0);
+  };
+
+  const closeDemoGuide = () => {
+    clearDemoTyping();
+    setDemoGuideOpen(false);
+  };
+
+  const moveDemoGuideForward = () => {
+    const nextStep = Math.min(DEMO_GUIDE_STEPS.length - 1, demoGuideStep + 1);
+    setDemoGuideStep(nextStep);
+    runDemoGuideStep(nextStep);
+  };
+
+  const finishDemoGuide = () => {
+    clearDemoTyping();
+    setDemoGuideOpen(false);
+    setDemoGuideStep(0);
   };
 
   const expandedLane = expandedLaneId ? state.lanes.find((lane) => lane.id === expandedLaneId) : null;
+  const expandedItem = expandedItemId ? state.items.find((item) => item.id === expandedItemId) : null;
   const draggingItem = draggingId ? state.items.find((item) => item.id === draggingId) : null;
 
   const renderBoardItem = (item: BoardItem) =>
@@ -871,14 +1476,11 @@ function App() {
         item={item}
         lanes={state.lanes}
         dragging={draggingId === item.id}
+        guided={guidedCardId === item.id}
         onPointerDown={(event) => startDraggingItem(event, item.id)}
-        onPointerMove={moveDraggingItem}
-        onPointerUp={stopDraggingItem}
-        onPointerCancel={stopDraggingItem}
         onEdit={() => startEdit(item)}
         onDelete={() => deleteItem(item.id)}
-        onFocusLane={() => setExpandedLaneId(item.laneId)}
-        onExpandColumn={() => setExpandedColumn(item.column)}
+        onOpen={() => setExpandedItemId(item.id)}
       />
     );
 
@@ -896,6 +1498,17 @@ function App() {
           </div>
         </div>
         <div className="header-actions preset-actions">
+          {isDemoPreset && (
+            <button
+              className={demoGuideOpen ? "guide-toggle active" : "guide-toggle"}
+              type="button"
+              onClick={toggleDemoGuide}
+              aria-label={demoGuideOpen ? "Restart demo tour" : "Start demo tour"}
+            >
+              <Play size={15} />
+              {demoGuideOpen ? "Restart" : "Tour"}
+            </button>
+          )}
           <select
             className="preset-select"
             value={state.preset === "demo" ? "demo" : "draft"}
@@ -916,7 +1529,7 @@ function App() {
           aria-label="Open My Life Lanes"
         >
           My Life Lanes
-          {state.items.length > 0 && <span>{state.items.length}</span>}
+          {boardItems.length > 0 && <span>{boardItems.length}</span>}
         </button>
         <button
           className={activeView === "capture" ? "tab-button active" : "tab-button"}
@@ -927,37 +1540,107 @@ function App() {
           Brain Dump
           {state.drafts.length > 0 && <span>{state.drafts.length}</span>}
         </button>
+        <button
+          className={activeView === "achievements" ? "tab-button active" : "tab-button"}
+          type="button"
+          onClick={() => setActiveView("achievements")}
+          aria-label="Open Achievements"
+        >
+          Achievements
+          {achievementItems.length > 0 && <span>{achievementItems.length}</span>}
+        </button>
       </nav>
+
+      {activeDemoGuideStep && (
+        <DemoGuidePanel
+          step={activeDemoGuideStep}
+          stepIndex={demoGuideStep}
+          stepCount={DEMO_GUIDE_STEPS.length}
+          highlightNext={!["capture", "triage", "newLane"].includes(activeDemoGuideStep.target)}
+          onNext={() => {
+            if (demoGuideStep >= DEMO_GUIDE_STEPS.length - 1) {
+              finishDemoGuide();
+              return;
+            }
+            moveDemoGuideForward();
+          }}
+          onClose={closeDemoGuide}
+        />
+      )}
 
       {activeView === "capture" ? (
         <main className="capture-page">
-          <section className="panel-card capture-card">
-            <div className="panel-title">
-              <div>
-                <h2>Brain Dump</h2>
+          <div className="capture-sidebar">
+            <section className={demoGuideTarget === "capture" ? "panel-card capture-card guide-target" : "panel-card capture-card"}>
+              <div className="panel-title">
+                <div>
+                  <h2>Brain Dump</h2>
+                </div>
               </div>
-            </div>
-            <form className="capture-form" onSubmit={captureDraft}>
-              <textarea
-                value={captureText}
-                onChange={(event) => setCaptureText(event.target.value)}
-                onKeyDown={(event) => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }
-                }}
-                placeholder="Drop what is on your mind."
-                aria-label="Brain Dump note"
-              />
-              <button className="primary-button" type="submit">
-                <Plus size={17} />
-                Add to Brain Dump
-              </button>
-            </form>
-          </section>
+              <form className="capture-form" onSubmit={captureDraft}>
+                {demoGuideTarget === "capture" ? (
+                  <DemoBrainDumpPreview typedText={captureText} />
+                ) : (
+                  <textarea
+                    value={captureText}
+                    onChange={(event) => setCaptureText(event.target.value)}
+                    onKeyDown={(event) => {
+                      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                        event.preventDefault();
+                        event.currentTarget.form?.requestSubmit();
+                      }
+                    }}
+                    placeholder="Drop what is on your mind."
+                    aria-label="Brain Dump note"
+                  />
+                )}
+                <div className="capture-action-wrap">
+                  <button className={demoGuideTarget === "capture" ? "primary-button capture-button guide-target" : "primary-button capture-button"} type="submit">
+                    <Send size={17} />
+                    Capture
+                  </button>
+                </div>
+              </form>
+            </section>
 
-          <section className="panel-card triage-card">
+            <section className="panel-card tags-card">
+              <div className="panel-title">
+                <div>
+                  <h2>Tags</h2>
+                </div>
+              </div>
+              <LifeLaneStrip
+                lanes={state.lanes}
+                editingLaneId={editingLaneId}
+                editingLaneName={editingLaneName}
+                onStartRename={(lane) => {
+                  setEditingLaneId(lane.id);
+                  setEditingLaneName(lane.name);
+                }}
+                onRename={renameLane}
+                onRenameChange={setEditingLaneName}
+                onCancelRename={() => {
+                  setEditingLaneId(null);
+                  setEditingLaneName("");
+                }}
+                onDelete={deleteLane}
+              />
+              <form
+                className="lane-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  addLane(newLaneName);
+                }}
+              >
+                <input value={newLaneName} onChange={(event) => setNewLaneName(event.target.value)} placeholder="New tag" aria-label="New Life Lane" />
+                <button className="icon-button" type="submit" aria-label="Create Life Lane">
+                  <Plus size={17} />
+                </button>
+              </form>
+            </section>
+          </div>
+
+          <section className={demoGuideTarget === "triage" ? "panel-card triage-card guide-target" : "panel-card triage-card"}>
             <div className="panel-title">
               <div>
                 <h2>Triage</h2>
@@ -970,7 +1653,14 @@ function App() {
                   <DraftCard
                     key={draft.id}
                     draft={draft}
-                    onSend={() => openPushModal(draft)}
+                    guided={demoGuideTarget === "triage" && isDemoDraftText(draft.text)}
+                    onSend={() => {
+                      if (isDemoPreset && demoGuideOpen && demoGuideStep === 1 && isDemoDraftText(draft.text)) {
+                        sortDemoDraftsToBoard();
+                        return;
+                      }
+                      openPushModal(draft);
+                    }}
                     onDelete={() => deleteDraft(draft.id)}
                   />
                 ))
@@ -979,43 +1669,9 @@ function App() {
               )}
             </div>
           </section>
-
-          <section className="panel-card tags-card">
-            <div className="panel-title">
-              <div>
-                <h2>Tags</h2>
-              </div>
-            </div>
-            <LifeLaneStrip
-              lanes={state.lanes}
-              editingLaneId={editingLaneId}
-              editingLaneName={editingLaneName}
-              onStartRename={(lane) => {
-                setEditingLaneId(lane.id);
-                setEditingLaneName(lane.name);
-              }}
-              onRename={renameLane}
-              onRenameChange={setEditingLaneName}
-              onCancelRename={() => {
-                setEditingLaneId(null);
-                setEditingLaneName("");
-              }}
-              onDelete={deleteLane}
-            />
-            <form
-              className="lane-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                addLane(newLaneName);
-              }}
-            >
-              <input value={newLaneName} onChange={(event) => setNewLaneName(event.target.value)} placeholder="New tag" aria-label="New Life Lane" />
-              <button className="icon-button" type="submit" aria-label="Create Life Lane">
-                <Plus size={17} />
-              </button>
-            </form>
-          </section>
         </main>
+      ) : activeView === "achievements" ? (
+        <AchievementsView items={achievementItems} lanes={state.lanes} onOpenItem={setExpandedItemId} guided={demoGuideTarget === "achievements"} />
       ) : (
         <main className="board-panel">
           <div className="board-toolbar board-toolbar-minimal">
@@ -1031,7 +1687,7 @@ function App() {
                   <input
                     value={newColumnName}
                     onChange={(event) => setNewColumnName(event.target.value)}
-                    placeholder="Life lane name"
+                    placeholder="Lane name"
                     aria-label="Add Life Lane state"
                     autoFocus
                   />
@@ -1051,16 +1707,28 @@ function App() {
                   </button>
                 </form>
               ) : (
-                <button className="add-lane-button" type="button" onClick={() => setShowBoardLaneComposer(true)} aria-label="Add Life Lane state">
+                <button
+                  className={demoGuideTarget === "newLane" ? "add-lane-button guide-target" : "add-lane-button"}
+                  type="button"
+                  onClick={() => {
+                    if (isDemoPreset && demoGuideOpen && demoGuideStep === 3) {
+                      setDemoGuideStep(4);
+                      runDemoGuideStep(4);
+                      return;
+                    }
+                    setShowBoardLaneComposer(true);
+                  }}
+                  aria-label="Add Life Lane state"
+                >
                   <Plus size={15} />
-                  Life Lane
+                  New lane
                 </button>
               )}
             </div>
           </div>
 
           <div className="mobile-column-switcher" aria-label="Choose board column">
-            {state.columns.map((column) => (
+            {boardColumns.map((column) => (
               <button
                 key={column.id}
                 className={mobileColumn === column.id ? "mobile-column-tab active" : "mobile-column-tab"}
@@ -1076,8 +1744,8 @@ function App() {
           {expandedLane && (
             <LaneFocus
               lane={expandedLane}
-              columns={state.columns}
-              items={state.items.filter((item) => item.laneId === expandedLane.id)}
+              columns={boardColumns}
+              items={boardItems.filter((item) => item.laneId === expandedLane.id)}
               onClose={() => setExpandedLaneId(null)}
             />
           )}
@@ -1095,20 +1763,25 @@ function App() {
           <div
             className={draggingId ? "kanban-board dragging-board" : "kanban-board"}
             ref={boardRef}
-            style={{ "--column-count": state.columns.length } as CSSProperties}
+            style={{ "--column-count": Math.max(boardColumns.length, 1) } as CSSProperties}
             aria-label="Life Lanes Kanban"
           >
-            {state.columns.map((column) => {
+            {boardColumns.map((column) => {
               const columnItems = state.items.filter((item) => item.column === column.id);
+              const isTemporaryDemoColumn = column.title === DEMO_TEMP_COLUMN_TITLE;
               const columnLaneGroups = state.lanes
                 .map((lane) => ({
                   lane,
                   items: columnItems.filter((item) => item.laneId === lane.id),
                 }))
-                .filter((group) => group.items.length > 0);
+                .filter((group) => draggingId || group.items.length > 0);
               return (
                 <section
-                  className={`${draggingId ? "kanban-column drag-aware" : "kanban-column"} ${mobileColumn === column.id ? "mobile-active" : ""}`}
+                  className={`${draggingId ? "kanban-column drag-aware" : "kanban-column"} ${mobileColumn === column.id ? "mobile-active" : ""} ${
+                    demoGuideTarget === "board" || demoGuideTarget === "deleteLane" || (demoGuideTarget === "newLane" && isTemporaryDemoColumn)
+                      ? "guide-target"
+                      : ""
+                  }`}
                   key={column.id}
                   data-column-id={column.id}
                 >
@@ -1159,22 +1832,44 @@ function App() {
                   </header>
 
                   <div className="column-lane-stack">
-                    {columnLaneGroups.map((group) => (
-                      <section className="column-lane" key={group.lane.id} data-column-id={column.id} data-column-lane-id={group.lane.id}>
-                        <header className="column-lane-header">
-                          <button
-                            className={`lane-pill lane-button ${group.lane.color}`}
-                            type="button"
-                            onDoubleClick={() => setExpandedLaneId(group.lane.id)}
-                            aria-label={`Open ${group.lane.name} lane focus`}
-                          >
-                            {group.lane.name}
-                          </button>
-                          <span className="lane-count">{group.items.length}</span>
-                        </header>
-                        <div className="item-stack column-lane-items">{group.items.map(renderBoardItem)}</div>
-                      </section>
-                    ))}
+                    {columnLaneGroups.map((group) => {
+                      const isDropLane = dropTarget?.column === column.id && dropTarget.laneId === group.lane.id;
+                      return (
+                        <section
+                          className={`${group.items.length ? "column-lane" : "column-lane empty-lane"} ${isDropLane ? "active-drop" : ""} ${
+                            demoGuideTarget === "lanes" && group.items.length ? "guide-target" : ""
+                          }`}
+                          key={group.lane.id}
+                          data-column-id={column.id}
+                          data-column-lane-id={group.lane.id}
+                        >
+                          <header className="column-lane-header">
+                            <button
+                              className={`lane-pill lane-button ${group.lane.color}`}
+                              type="button"
+                              onDoubleClick={() => setExpandedLaneId(group.lane.id)}
+                              aria-label={`Open ${group.lane.name} lane focus`}
+                            >
+                              {group.lane.name}
+                            </button>
+                            <span className="lane-count">{group.items.length}</span>
+                          </header>
+                          <div className="item-stack column-lane-items">
+                            {group.items.map((item) => (
+                              <DropAwareItem
+                                key={item.id}
+                                item={item}
+                                dropTarget={dropTarget}
+                                columnId={column.id}
+                                laneId={group.lane.id}
+                                renderItem={renderBoardItem}
+                              />
+                            ))}
+                            {dropTarget?.column === column.id && dropTarget.laneId === group.lane.id && !dropTarget.targetId && <DropPlaceholder />}
+                          </div>
+                        </section>
+                      );
+                    })}
                   </div>
 
                   {openAddColumn === column.id ? (
@@ -1201,6 +1896,18 @@ function App() {
             <DragGhost item={draggingItem} lane={laneFor(state.lanes, draggingItem.laneId)} ghost={dragGhost} ghostRef={dragGhostElementRef} />
           )}
         </main>
+      )}
+      {expandedItem && (
+        <ItemFocus
+          item={expandedItem}
+          columns={state.columns}
+          lanes={state.lanes}
+          items={state.items}
+          onClose={() => setExpandedItemId(null)}
+          onOpenItem={setExpandedItemId}
+          onUpdate={(patch) => updateItem(expandedItem.id, patch)}
+          onDelete={() => deleteItem(expandedItem.id)}
+        />
       )}
       {pushDraft && pushChoice && (
         <TriageModal
@@ -1376,10 +2083,12 @@ function ColumnFocus({
 
 function DraftCard({
   draft,
+  guided,
   onSend,
   onDelete,
 }: {
   draft: DraftNote;
+  guided: boolean;
   onSend: () => void;
   onDelete: () => void;
 }) {
@@ -1387,15 +2096,33 @@ function DraftCard({
     <article className="draft-card">
       <p>{draft.text}</p>
       <div className="draft-actions">
-        <button className="primary-button small" type="button" onClick={onSend}>
+        <button className={guided ? "primary-button small guide-target" : "primary-button small"} type="button" onClick={onSend}>
           <Send size={15} />
-          Push to Life Lanes
+          Sort
         </button>
         <button className="icon-button subtle" type="button" onClick={onDelete} aria-label="Delete draft">
           <Trash2 size={15} />
         </button>
       </div>
     </article>
+  );
+}
+
+function DemoBrainDumpPreview({ typedText }: { typedText: string }) {
+  const typedLines = typedText.split("\n");
+
+  return (
+    <div className="demo-brain-dumps" aria-label="Demo brain dump examples">
+      {DEMO_CAPTURE_ENTRIES.map((entry, index) => {
+        const value = typedLines[index] ?? "";
+        return (
+          <article className={value ? "demo-brain-dump filled" : "demo-brain-dump"} key={entry.text}>
+            <span>{entry.lane}</span>
+            <p>{value || "..."}</p>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1417,10 +2144,18 @@ function TriageModal({
   onSend: () => void;
 }) {
   return (
-    <div className="modal-scrim" role="presentation">
+    <div
+      className="modal-scrim"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <section className="triage-modal" role="dialog" aria-modal="true" aria-labelledby="triage-modal-title">
         <header>
-          <h2 id="triage-modal-title">Push to Life Lanes</h2>
+          <h2 id="triage-modal-title">Place note</h2>
           <button className="icon-button subtle" type="button" onClick={onClose} aria-label="Close triage">
             <X size={15} />
           </button>
@@ -1451,7 +2186,7 @@ function TriageModal({
         <div className="modal-actions">
           <button className="primary-button small" type="button" onClick={onSend}>
             <Send size={15} />
-            Push
+            Place
           </button>
           <button className="icon-button subtle" type="button" onClick={onClose} aria-label="Cancel triage">
             <X size={15} />
@@ -1462,59 +2197,336 @@ function TriageModal({
   );
 }
 
-function BoardCard({
+function DemoGuidePanel({
+  step,
+  stepIndex,
+  stepCount,
+  highlightNext,
+  onNext,
+  onClose,
+}: {
+  step: DemoGuideStep;
+  stepIndex: number;
+  stepCount: number;
+  highlightNext: boolean;
+  onNext: () => void;
+  onClose: () => void;
+}) {
+  const lastStep = stepIndex >= stepCount - 1;
+
+  return (
+    <aside className="demo-guide" aria-live="polite">
+      <div className="demo-guide-copy">
+        <span className="demo-guide-kicker">
+          Demo · {stepIndex + 1}/{stepCount}
+        </span>
+        <h2>{step.title}</h2>
+        <p>{step.body}</p>
+      </div>
+      <div className="demo-guide-actions">
+        <div className="demo-guide-progress" aria-hidden="true">
+          {Array.from({ length: stepCount }, (_, index) => (
+            <span className={index === stepIndex ? "active" : ""} key={index} />
+          ))}
+        </div>
+        <button className={highlightNext ? "primary-button small guide-target" : "primary-button small"} type="button" onClick={onNext}>
+          {lastStep ? "Done" : "Next"}
+          {!lastStep && <ChevronRight size={14} />}
+        </button>
+        <button className="icon-button subtle" type="button" onClick={onClose} aria-label="Close demo guide">
+          <X size={14} />
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function DropAwareItem({
   item,
-  lanes,
-  dragging,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onPointerCancel,
-  onEdit,
-  onDelete,
-  onFocusLane,
-  onExpandColumn,
+  dropTarget,
+  columnId,
+  laneId,
+  renderItem,
 }: {
   item: BoardItem;
-  lanes: LifeLane[];
-  dragging: boolean;
-  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
-  onPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
-  onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  onFocusLane: () => void;
-  onExpandColumn: () => void;
+  dropTarget: DropTarget | null;
+  columnId: ColumnId;
+  laneId: string;
+  renderItem: (item: BoardItem) => JSX.Element;
 }) {
-  const lane = laneFor(lanes, item.laneId);
+  const isTarget = dropTarget?.column === columnId && dropTarget.laneId === laneId && dropTarget.targetId === item.id;
+
+  return (
+    <>
+      {isTarget && dropTarget.placement === "before" && <DropPlaceholder />}
+      {renderItem(item)}
+      {isTarget && dropTarget.placement === "after" && <DropPlaceholder />}
+    </>
+  );
+}
+
+function DropPlaceholder() {
+  return <div className="drop-placeholder" aria-hidden="true" />;
+}
+
+function AchievementsView({
+  items,
+  lanes,
+  onOpenItem,
+  guided,
+}: {
+  items: BoardItem[];
+  lanes: LifeLane[];
+  onOpenItem: (itemId: string) => void;
+  guided: boolean;
+}) {
+  const groups = lanes
+    .map((lane) => ({
+      lane,
+      items: items.filter((item) => item.laneId === lane.id),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  return (
+    <main className={guided ? "achievements-panel guide-target" : "achievements-panel"}>
+      {groups.length ? (
+        groups.map((group) => (
+          <section className="achievement-lane" key={group.lane.id}>
+            <header>
+              <span className={`lane-pill ${group.lane.color}`}>{group.lane.name}</span>
+              <span className="lane-count">{group.items.length}</span>
+            </header>
+            <div className="achievement-grid">
+              {group.items.map((item) => (
+                <AchievementCard key={item.id} item={item} lane={group.lane} onOpen={() => onOpenItem(item.id)} />
+              ))}
+            </div>
+          </section>
+        ))
+      ) : (
+        <div className="empty-state achievements-empty">Completed items will collect here.</div>
+      )}
+    </main>
+  );
+}
+
+function AchievementCard({ item, lane, onOpen }: { item: BoardItem; lane: LifeLane; onOpen: () => void }) {
   const dateLabel = dateRangeLabel(item);
 
   return (
     <article
-      className={dragging ? `board-card ${lane.color} dragging` : `board-card ${lane.color}`}
+      className={`achievement-card ${lane.color}`}
+      aria-label={`${item.title}, ${lane.name}`}
+      onDoubleClick={onOpen}
+      tabIndex={0}
+      onKeyDown={(event) => event.key === "Enter" && onOpen()}
+    >
+      <h4>{item.title}</h4>
+      {dateLabel && <span className="card-date">{dateLabel}</span>}
+    </article>
+  );
+}
+
+function ItemFocus({
+  item,
+  columns,
+  lanes,
+  items,
+  onClose,
+  onOpenItem,
+  onUpdate,
+  onDelete,
+}: {
+  item: BoardItem;
+  columns: BoardColumn[];
+  lanes: LifeLane[];
+  items: BoardItem[];
+  onClose: () => void;
+  onOpenItem: (itemId: string) => void;
+  onUpdate: (patch: Partial<BoardItem>) => void;
+  onDelete: () => void;
+}) {
+  const [draft, setDraft] = useState<EditingState>({
+    title: item.title,
+    note: item.note,
+    column: item.column,
+    laneId: item.laneId,
+    startDate: item.startDate ?? "",
+    endDate: item.endDate ?? "",
+  });
+  const column = columns.find((candidate) => candidate.id === item.column);
+  const activeColumnItems = items.filter((candidate) => candidate.column === item.column);
+  const groups = lanes
+    .map((lane) => ({
+      lane,
+      items: activeColumnItems.filter((candidate) => candidate.laneId === lane.id),
+    }))
+    .filter((group) => group.items.length > 0 || group.lane.id === item.laneId);
+
+  useEffect(() => {
+    setDraft({
+      title: item.title,
+      note: item.note,
+      column: item.column,
+      laneId: item.laneId,
+      startDate: item.startDate ?? "",
+      endDate: item.endDate ?? "",
+    });
+  }, [item]);
+
+  const save = () => {
+    if (!draft.title.trim()) {
+      return;
+    }
+    onUpdate({
+      title: draft.title.trim(),
+      note: draft.note.trim(),
+      column: draft.column,
+      laneId: draft.laneId,
+      startDate: draft.startDate || undefined,
+      endDate: draft.endDate || undefined,
+    });
+  };
+
+  return (
+    <div
+      className="item-focus-scrim"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <section className="item-focus" role="dialog" aria-modal="true" aria-labelledby="item-focus-title">
+        <header className="item-focus-header">
+          <div>
+            <span className="focus-kicker">{column?.title ?? "Life Lane"}</span>
+            <h2 id="item-focus-title">{item.title}</h2>
+          </div>
+          <button className="icon-button subtle" type="button" onClick={onClose} aria-label="Close item view">
+            <X size={16} />
+          </button>
+        </header>
+
+        <div className="item-focus-body">
+          <form
+            className="item-focus-editor"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save();
+            }}
+          >
+            <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} aria-label="Item title" />
+            <textarea value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} placeholder="Notes" aria-label="Item notes" />
+            <div className="card-controls">
+              <select value={draft.column} onChange={(event) => setDraft({ ...draft, column: event.target.value })} aria-label="Move item">
+                {columns.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.title}
+                  </option>
+                ))}
+              </select>
+              <select value={draft.laneId} onChange={(event) => setDraft({ ...draft, laneId: event.target.value })} aria-label="Item tag">
+                {lanes.map((lane) => (
+                  <option key={lane.id} value={lane.id}>
+                    {lane.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="date-range-fields">
+              <input type="date" value={draft.startDate} onChange={(event) => setDraft({ ...draft, startDate: event.target.value })} aria-label="Start date" />
+              <input type="date" value={draft.endDate} onChange={(event) => setDraft({ ...draft, endDate: event.target.value })} aria-label="End date" />
+            </div>
+            <div className="item-focus-actions">
+              <button className="primary-button small" type="submit">
+                <Check size={15} />
+                Save
+              </button>
+              <button className="icon-button subtle danger" type="button" onClick={onDelete} aria-label="Delete item">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          </form>
+
+          <div className="item-focus-lanes" aria-label="Parallel Life Lanes">
+            {groups.map((group) => (
+              <section className="focus-lane-column" key={group.lane.id}>
+                <header>
+                  <span className={`lane-pill ${group.lane.color}`}>{group.lane.name}</span>
+                  <span className="lane-count">{group.items.length}</span>
+                </header>
+                <div className="mini-item-stack">
+                  {group.items.length ? (
+                    group.items.map((candidate) => (
+                      <button
+                        key={candidate.id}
+                        className={candidate.id === item.id ? "mini-item focus-mini active" : "mini-item focus-mini"}
+                        type="button"
+                        onClick={() => onOpenItem(candidate.id)}
+                      >
+                        <strong>{candidate.title}</strong>
+                        {dateRangeLabel(candidate) && <span>{dateRangeLabel(candidate)}</span>}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="quiet">Empty</span>
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function BoardCard({
+  item,
+  lanes,
+  dragging,
+  guided,
+  onPointerDown,
+  onEdit,
+  onDelete,
+  onOpen,
+}: {
+  item: BoardItem;
+  lanes: LifeLane[];
+  dragging: boolean;
+  guided: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onOpen: () => void;
+}) {
+  const lane = laneFor(lanes, item.laneId);
+
+  return (
+    <article
+      className={`${dragging ? `board-card ${lane.color} dragging` : `board-card ${lane.color}`} ${guided ? "guide-target" : ""}`}
       data-card-id={item.id}
       aria-label={`${item.title}, ${lane.name}`}
       onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          onOpen();
+        }
+      }}
       onDoubleClick={(event) => {
-        if ((event.target as HTMLElement).closest("button, input, select, textarea")) {
+        if ((event.target as HTMLElement).closest("button, input, select, textarea, .drag-handle")) {
           return;
         }
-        onExpandColumn();
+        onOpen();
       }}
     >
-      <div className="card-topline">
-        <GripVertical size={16} />
-        <button className={`lane-pill lane-button ${lane.color}`} type="button" onDoubleClick={onFocusLane} aria-label={`Open ${lane.name} lane focus`}>
-          {lane.name}
-        </button>
-      </div>
+      <button className="drag-handle" type="button" aria-label={`Drag ${item.title}`}>
+        <GripVertical size={15} />
+      </button>
       <h4>{item.title}</h4>
-      {dateLabel && <span className="card-date">{dateLabel}</span>}
-      {item.note && <p>{item.note}</p>}
       <div className="card-actions">
         <button className="icon-button subtle" type="button" onClick={onEdit} aria-label={`Edit ${item.title}`}>
           <Pencil size={15} />
@@ -1528,8 +2540,6 @@ function BoardCard({
 }
 
 function DragGhost({ item, lane, ghost, ghostRef }: { item: BoardItem; lane: LifeLane; ghost: DragGhostState; ghostRef: RefObject<HTMLDivElement> }) {
-  const dateLabel = dateRangeLabel(item);
-
   return (
     <div
       ref={ghostRef}
@@ -1539,13 +2549,10 @@ function DragGhost({ item, lane, ghost, ghostRef }: { item: BoardItem; lane: Lif
         transform: `translate3d(${ghost.x - ghost.offsetX}px, ${ghost.y - ghost.offsetY}px, 0)`,
       }}
     >
-      <div className="card-topline">
-        <GripVertical size={16} />
+      <div className="card-topline compact">
         <span className={`lane-pill ${lane.color}`}>{lane.name}</span>
       </div>
       <h4>{item.title}</h4>
-      {dateLabel && <span className="card-date">{dateLabel}</span>}
-      {item.note && <p>{item.note}</p>}
     </div>
   );
 }

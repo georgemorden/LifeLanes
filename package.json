@@ -2,7 +2,7 @@
   "name": "life-lanes",
   "version": "0.1.0",
   "private": true,
-  "description": "A calm, local-first board for personal life admin.",
+  "description": "A calm, local-first board for brain dumps, life lanes, and personal priorities.",
   "type": "module",
   "scripts": {
     "dev": "vite",

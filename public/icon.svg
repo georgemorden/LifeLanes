@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Life Lanes</title>
+  <rect width="512" height="512" rx="112" fill="#202124"/>
+  <rect x="82" y="72" width="348" height="368" rx="76" fill="#25272c" stroke="#4f535a" stroke-width="10"/>
+  <rect x="136" y="128" width="54" height="256" rx="27" fill="#9ab7f5"/>
+  <rect x="229" y="128" width="54" height="256" rx="27" fill="#80cbb8"/>
+  <rect x="322" y="128" width="54" height="256" rx="27" fill="#adb5c3"/>
+</svg>

@@ -1,0 +1,21 @@
+{
+  "name": "Life Lanes",
+  "short_name": "Life Lanes",
+  "description": "A calm local-first board for brain dumps, life lanes, goals, notes, and priorities.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "background_color": "#202124",
+  "theme_color": "#202124",
+  "orientation": "any",
+  "categories": ["productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

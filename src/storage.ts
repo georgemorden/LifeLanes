@@ -6,6 +6,7 @@ import {
   createId,
   createLifeLane,
   isColumnId,
+  isDemoLikeState,
   isLaneColor,
   nowStamp,
 } from "./data";
@@ -175,13 +176,21 @@ export function loadState() {
     if (!raw) {
       return createBoardState("draft");
     }
-    return normalizeState(JSON.parse(raw)) ?? createBoardState("draft");
+    const state = normalizeState(JSON.parse(raw));
+    if (!state || state.preset === "demo" || (state.preset === "custom" && isDemoLikeState(state))) {
+      return createBoardState("draft");
+    }
+    return state;
   } catch {
     return createBoardState("draft");
   }
 }
 
 export function saveState(state: BoardState) {
+  if (state.preset === "demo") {
+    return true;
+  }
+
   return writeLocalStorage(BOARD_STORAGE_KEY, JSON.stringify(state));
 }
 
