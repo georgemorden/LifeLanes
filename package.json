@@ -8,7 +8,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit --pretty false",
-    "lint": "tsc --noEmit --pretty false"
+    "lint": "tsc --noEmit --pretty false",
+    "test:e2e": "playwright test --config=playwright.served.config.ts",
+    "test:e2e:live": "playwright test",
+    "test:e2e:ui": "playwright test --ui --config=playwright.served.config.ts"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -16,6 +19,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^6.0.2",

@@ -42,6 +42,7 @@ type PendingDragState = {
   width: number;
   startX: number;
   startY: number;
+  threshold: number;
   element: HTMLElement;
 };
 type ToastState =
@@ -58,50 +59,50 @@ type DemoGuideStep = {
 
 const DEMO_GUIDE_STEPS: DemoGuideStep[] = [
   {
-    title: "Brain dump first",
-    body: "Three separate notes get typed in first. Press Capture when they are worth keeping.",
+    title: "Capture",
+    body: "Three loose notes get typed in. Press Capture.",
     view: "capture",
     target: "capture",
   },
   {
-    title: "Sort it",
-    body: "They wait in Triage. Press Sort and Life Lanes places them for you.",
+    title: "Sort",
+    body: "They wait in Triage. Press Sort.",
     view: "capture",
     target: "triage",
   },
   {
-    title: "Place it",
-    body: "They become Career, Fitness, and Finance cards without manual tag picking.",
+    title: "Place",
+    body: "Career, Fitness, and Finance appear on the board.",
     view: "board",
     target: "board",
   },
   {
-    title: "Add a lane",
-    body: "The demo adds a temporary lane called This Week, so you can shape the board around how you think.",
+    title: "Add lane",
+    body: "A temporary lane appears, then disappears again.",
     view: "board",
     target: "newLane",
   },
   {
-    title: "Life lanes appear",
-    body: "A few more cards appear across tags. Tags become mini-lanes inside each board lane.",
+    title: "Sub-lanes",
+    body: "Tags become smaller lanes inside each board lane.",
     view: "board",
     target: "lanes",
   },
   {
-    title: "Move by feel",
-    body: "The holiday fund card moves into Doing, like a drag action when something becomes active.",
+    title: "Move",
+    body: "The holiday fund moves into Doing.",
     view: "board",
     target: "drag",
   },
   {
-    title: "Remove what you do not need",
-    body: "The temporary lane is deleted again. Life Lanes should stay flexible, not precious.",
+    title: "Remove",
+    body: "The temporary lane is removed.",
     view: "board",
     target: "deleteLane",
   },
   {
-    title: "Keep the record",
-    body: "Completed items move into Achievements, so progress is visible without cluttering today.",
+    title: "Complete",
+    body: "Completed items move into Achievements.",
     view: "achievements",
     target: "achievements",
   },
@@ -285,6 +286,7 @@ function App() {
   const [demoGuideOpen, setDemoGuideOpen] = useState(false);
   const [demoGuideStep, setDemoGuideStep] = useState(0);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [achievementBurst, setAchievementBurst] = useState<{ id: string; title: string } | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const cardPositionsRef = useRef<Map<string, DOMRect>>(new Map());
   const itemsRef = useRef<BoardItem[]>(initialState.items);
@@ -298,6 +300,7 @@ function App() {
   const pendingDragRef = useRef<PendingDragState | null>(null);
   const demoTypingTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const achievementBurstTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     itemsRef.current = state.items;
@@ -374,6 +377,10 @@ function App() {
       if (demoTypingTimerRef.current) {
         window.clearInterval(demoTypingTimerRef.current);
       }
+      if (achievementBurstTimerRef.current) {
+        window.clearTimeout(achievementBurstTimerRef.current);
+      }
+      document.body.classList.remove("is-dragging-card");
     },
     [],
   );
@@ -819,6 +826,43 @@ function App() {
     showToast({ id: createId("undo"), kind: "undo-item", label: "Item removed.", item, index });
   };
 
+  const completeItem = (itemId: string) => {
+    const item = state.items.find((candidate) => candidate.id === itemId);
+    if (!item || item.column === "done") {
+      return;
+    }
+
+    setCustomState((current) => {
+      const doneColumn = current.columns.find(isAchievementColumn) ?? {
+        id: "done",
+        title: "Done",
+        createdAt: nowStamp(),
+      };
+      const columns = current.columns.some((column) => column.id === doneColumn.id) ? current.columns : [...current.columns, doneColumn];
+
+      return {
+        ...current,
+        columns,
+        items: current.items.map((candidate) =>
+          candidate.id === itemId
+            ? {
+                ...candidate,
+                column: doneColumn.id,
+                updatedAt: nowStamp(),
+              }
+            : candidate,
+        ),
+      };
+    });
+
+    setAchievementBurst({ id: createId("burst"), title: item.title });
+    if (achievementBurstTimerRef.current) {
+      window.clearTimeout(achievementBurstTimerRef.current);
+    }
+    achievementBurstTimerRef.current = window.setTimeout(() => setAchievementBurst(null), 2400);
+    showToast({ id: createId("notice"), kind: "notice", label: "Moved to Achievements." }, 2800);
+  };
+
   const startEdit = (item: BoardItem) => {
     setEditingId(item.id);
     setEditing({
@@ -869,19 +913,28 @@ function App() {
       if (targetIndex >= 0) {
         nextItems.splice(targetIndex + (placement === "after" ? 1 : 0), 0, moved);
       } else {
+        const lastMatchingLaneIndex = remaining.reduce(
+          (lastIndex, item, index) => (item.column === column && (!laneId || item.laneId === laneId) ? index : lastIndex),
+          -1,
+        );
         const lastColumnIndex = remaining.reduce((lastIndex, item, index) => (item.column === column ? index : lastIndex), -1);
-        nextItems.splice(lastColumnIndex + 1, 0, moved);
+        nextItems.splice((lastMatchingLaneIndex >= 0 ? lastMatchingLaneIndex : lastColumnIndex) + 1, 0, moved);
       }
 
       const sameOrder = nextItems.every(
         (item, index) =>
           item.id === current.items[index]?.id && item.column === current.items[index]?.column && item.laneId === current.items[index]?.laneId,
       );
-      if (sameOrder) {
+      if (sameOrder && !commit) {
         return current;
       }
 
-      return { ...current, items: nextItems };
+      return {
+        ...current,
+        items: sameOrder
+          ? current.items.map((item) => (item.id === itemId ? { ...item, updatedAt: nowStamp() } : item))
+          : nextItems,
+      };
     });
   };
 
@@ -891,6 +944,11 @@ function App() {
     }
     dropTargetRef.current = target;
     setDropTarget(target);
+
+    const activeId = draggingIdRef.current;
+    if (activeId && target) {
+      moveDraggedItem(activeId, target.column, target.targetId, target.placement ?? "after", target.laneId, false);
+    }
   };
 
   const updateDropTargetAtPoint = (clientX: number, clientY: number) => {
@@ -978,11 +1036,12 @@ function App() {
     const pendingDrag = pendingDragRef.current;
     if (!draggingIdRef.current && pendingDrag && pointerId === pendingDrag.pointerId) {
       const distance = Math.hypot(clientX - pendingDrag.startX, clientY - pendingDrag.startY);
-      if (distance < 3) {
+      if (distance < pendingDrag.threshold) {
         return;
       }
 
       preventDefault?.();
+      document.body.classList.add("is-dragging-card");
       const nextGhost = {
         itemId: pendingDrag.itemId,
         pointerId: pendingDrag.pointerId,
@@ -1048,6 +1107,7 @@ function App() {
 
     draggingIdRef.current = null;
     dragGhostRef.current = null;
+    document.body.classList.remove("is-dragging-card");
     if (dragAnimationFrameRef.current) {
       window.cancelAnimationFrame(dragAnimationFrameRef.current);
       dragAnimationFrameRef.current = null;
@@ -1153,6 +1213,7 @@ function App() {
       width: rect.width,
       startX: event.clientX,
       startY: event.clientY,
+      threshold: event.pointerType === "touch" ? 8 : 5,
       element: cardElement,
     };
   };
@@ -1377,6 +1438,7 @@ function App() {
 
   const loadPreset = (preset: "draft" | "demo") => {
     const next = preset === "demo" ? createBoardState("demo") : loadState();
+    const shouldStartGuide = preset === "demo";
     setState(next);
     setCaptureText("");
     setQuickAdd(createQuickAddState(next.lanes, next.columns));
@@ -1393,7 +1455,7 @@ function App() {
     setEditingLaneName("");
     setEditingColumnId(null);
     setEditingColumnName("");
-    setDemoGuideOpen(false);
+    setDemoGuideOpen(shouldStartGuide);
     setDemoGuideStep(0);
     setPushDraft(null);
     setPushChoice(null);
@@ -1402,8 +1464,11 @@ function App() {
     dropTargetRef.current = null;
     setDropTarget(null);
     closeToast();
-    setActiveView("board");
+    setActiveView(shouldStartGuide ? "capture" : "board");
     setMobileColumn(next.columns[0]?.id ?? "");
+    if (shouldStartGuide) {
+      typeDemoNote(DEMO_TYPED_NOTE);
+    }
   };
 
   const toggleDemoGuide = () => {
@@ -1456,6 +1521,50 @@ function App() {
   const expandedItem = expandedItemId ? state.items.find((item) => item.id === expandedItemId) : null;
   const draggingItem = draggingId ? state.items.find((item) => item.id === draggingId) : null;
 
+  const renderLaneTools = () =>
+    showBoardLaneComposer ? (
+      <form
+        className="lane-form inline lane-composer"
+        onSubmit={(event) => {
+          event.preventDefault();
+          addColumn(newColumnName);
+        }}
+      >
+        <input value={newColumnName} onChange={(event) => setNewColumnName(event.target.value)} placeholder="Lane name" aria-label="Add Life Lane state" autoFocus />
+        <button className="icon-button confirm" type="submit" aria-label="Add Life Lane state">
+          <Check size={16} />
+        </button>
+        <button
+          className="icon-button subtle"
+          type="button"
+          onClick={() => {
+            setNewColumnName("");
+            setShowBoardLaneComposer(false);
+          }}
+          aria-label="Cancel adding column"
+        >
+          <X size={15} />
+        </button>
+      </form>
+    ) : (
+      <button
+        className={demoGuideTarget === "newLane" ? "add-lane-button guide-target" : "add-lane-button"}
+        type="button"
+        onClick={() => {
+          if (isDemoPreset && demoGuideOpen && demoGuideStep === 3) {
+            setDemoGuideStep(4);
+            runDemoGuideStep(4);
+            return;
+          }
+          setShowBoardLaneComposer(true);
+        }}
+        aria-label="Add Life Lane state"
+      >
+        <Plus size={15} />
+        New lane
+      </button>
+    );
+
   const renderBoardItem = (item: BoardItem) =>
     editingId === item.id && editing ? (
       <EditItemCard
@@ -1478,6 +1587,7 @@ function App() {
         dragging={draggingId === item.id}
         guided={guidedCardId === item.id}
         onPointerDown={(event) => startDraggingItem(event, item.id)}
+        onComplete={() => completeItem(item.id)}
         onEdit={() => startEdit(item)}
         onDelete={() => deleteItem(item.id)}
         onOpen={() => setExpandedItemId(item.id)}
@@ -1521,35 +1631,38 @@ function App() {
         </div>
       </header>
 
-      <nav className="workspace-tabs" aria-label="Workspace">
-        <button
-          className={activeView === "board" ? "tab-button active" : "tab-button"}
-          type="button"
-          onClick={() => setActiveView("board")}
-          aria-label="Open My Life Lanes"
-        >
-          My Life Lanes
-          {boardItems.length > 0 && <span>{boardItems.length}</span>}
-        </button>
-        <button
-          className={activeView === "capture" ? "tab-button active" : "tab-button"}
-          type="button"
-          onClick={() => setActiveView("capture")}
-          aria-label="Open Brain Dump"
-        >
-          Brain Dump
-          {state.drafts.length > 0 && <span>{state.drafts.length}</span>}
-        </button>
-        <button
-          className={activeView === "achievements" ? "tab-button active" : "tab-button"}
-          type="button"
-          onClick={() => setActiveView("achievements")}
-          aria-label="Open Achievements"
-        >
-          Achievements
-          {achievementItems.length > 0 && <span>{achievementItems.length}</span>}
-        </button>
-      </nav>
+      <div className="workspace-row">
+        <nav className="workspace-tabs" aria-label="Workspace">
+          <button
+            className={activeView === "board" ? "tab-button active" : "tab-button"}
+            type="button"
+            onClick={() => setActiveView("board")}
+            aria-label="Open My Life Lanes"
+          >
+            My Life Lanes
+            {boardItems.length > 0 && <span>{boardItems.length}</span>}
+          </button>
+          <button
+            className={activeView === "capture" ? "tab-button active" : "tab-button"}
+            type="button"
+            onClick={() => setActiveView("capture")}
+            aria-label="Open Brain Dump"
+          >
+            Brain Dump
+            {state.drafts.length > 0 && <span>{state.drafts.length}</span>}
+          </button>
+          <button
+            className={activeView === "achievements" ? "tab-button active" : "tab-button"}
+            type="button"
+            onClick={() => setActiveView("achievements")}
+            aria-label="Open Achievements"
+          >
+            Achievements
+            {achievementItems.length > 0 && <span>{achievementItems.length}</span>}
+          </button>
+        </nav>
+        {activeView === "board" && <div className="board-lane-tools workspace-lane-tools">{renderLaneTools()}</div>}
+      </div>
 
       {activeDemoGuideStep && (
         <DemoGuidePanel
@@ -1674,59 +1787,6 @@ function App() {
         <AchievementsView items={achievementItems} lanes={state.lanes} onOpenItem={setExpandedItemId} guided={demoGuideTarget === "achievements"} />
       ) : (
         <main className="board-panel">
-          <div className="board-toolbar board-toolbar-minimal">
-            <div className="board-lane-tools">
-              {showBoardLaneComposer ? (
-                <form
-                  className="lane-form inline lane-composer"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    addColumn(newColumnName);
-                  }}
-                >
-                  <input
-                    value={newColumnName}
-                    onChange={(event) => setNewColumnName(event.target.value)}
-                    placeholder="Lane name"
-                    aria-label="Add Life Lane state"
-                    autoFocus
-                  />
-                  <button className="icon-button confirm" type="submit" aria-label="Add Life Lane state">
-                    <Check size={16} />
-                  </button>
-                  <button
-                    className="icon-button subtle"
-                    type="button"
-                    onClick={() => {
-                      setNewColumnName("");
-                      setShowBoardLaneComposer(false);
-                    }}
-                    aria-label="Cancel adding column"
-                  >
-                    <X size={15} />
-                  </button>
-                </form>
-              ) : (
-                <button
-                  className={demoGuideTarget === "newLane" ? "add-lane-button guide-target" : "add-lane-button"}
-                  type="button"
-                  onClick={() => {
-                    if (isDemoPreset && demoGuideOpen && demoGuideStep === 3) {
-                      setDemoGuideStep(4);
-                      runDemoGuideStep(4);
-                      return;
-                    }
-                    setShowBoardLaneComposer(true);
-                  }}
-                  aria-label="Add Life Lane state"
-                >
-                  <Plus size={15} />
-                  New lane
-                </button>
-              )}
-            </div>
-          </div>
-
           <div className="mobile-column-switcher" aria-label="Choose board column">
             {boardColumns.map((column) => (
               <button
@@ -1936,6 +1996,7 @@ function App() {
           </button>
         </div>
       )}
+      {achievementBurst && <AchievementBurst key={achievementBurst.id} title={achievementBurst.title} />}
     </div>
   );
 }
@@ -2489,6 +2550,7 @@ function BoardCard({
   dragging,
   guided,
   onPointerDown,
+  onComplete,
   onEdit,
   onDelete,
   onOpen,
@@ -2498,11 +2560,13 @@ function BoardCard({
   dragging: boolean;
   guided: boolean;
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  onComplete: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onOpen: () => void;
 }) {
   const lane = laneFor(lanes, item.laneId);
+  const dateLabel = dateRangeLabel(item);
 
   return (
     <article
@@ -2526,7 +2590,13 @@ function BoardCard({
       <button className="drag-handle" type="button" aria-label={`Drag ${item.title}`}>
         <GripVertical size={15} />
       </button>
-      <h4>{item.title}</h4>
+      <div className="card-title-row">
+        <button className="complete-action" type="button" onClick={onComplete} aria-label={`Move ${item.title} to Achievements`}>
+          <Check size={14} />
+        </button>
+        <h4>{item.title}</h4>
+      </div>
+      {dateLabel && <span className="card-date">{dateLabel}</span>}
       <div className="card-actions">
         <button className="icon-button subtle" type="button" onClick={onEdit} aria-label={`Edit ${item.title}`}>
           <Pencil size={15} />
@@ -2536,6 +2606,64 @@ function BoardCard({
         </button>
       </div>
     </article>
+  );
+}
+
+function AchievementBurst({ title }: { title: string }) {
+  return (
+    <div className="achievement-burst" role="status" aria-live="polite" aria-label={`${title} moved to Achievements`}>
+      <div className="achievement-flight-shell">
+        <span className="achievement-trail main" aria-hidden="true" />
+        <span className="achievement-trail secondary" aria-hidden="true" />
+        <span className="achievement-trail tertiary" aria-hidden="true" />
+        <LifeLanesGoat />
+        <span className="achievement-label">Done</span>
+        <span className="achievement-spark one" aria-hidden="true" />
+        <span className="achievement-spark two" aria-hidden="true" />
+        <span className="achievement-spark three" aria-hidden="true" />
+        <span className="achievement-spark four" aria-hidden="true" />
+        <span className="achievement-spark five" aria-hidden="true" />
+        <span className="achievement-spark six" aria-hidden="true" />
+      </div>
+    </div>
+  );
+}
+
+function LifeLanesGoat() {
+  return (
+    <svg className="achievement-goat" viewBox="0 0 190 128" aria-hidden="true">
+      <defs>
+        <linearGradient id="goatBody" x1="26" x2="156" y1="26" y2="98" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#f7fbff" />
+          <stop offset="0.48" stopColor="#dfe8f0" />
+          <stop offset="1" stopColor="#aebdc8" />
+        </linearGradient>
+        <linearGradient id="goatAccent" x1="62" x2="128" y1="18" y2="88" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#9ab7f5" />
+          <stop offset="1" stopColor="#80cbb8" />
+        </linearGradient>
+        <linearGradient id="goatHorn" x1="132" x2="165" y1="4" y2="46" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#d8fff0" />
+          <stop offset="1" stopColor="#9ab7f5" />
+        </linearGradient>
+      </defs>
+      <path className="goat-shadow" d="M40 103C68 114 121 116 153 103" />
+      <path className="goat-tail" d="M42 55C24 49 20 34 31 27C32 40 43 42 51 49Z" />
+      <path className="goat-back-leg" d="M67 79C58 94 52 105 39 112L51 116C64 107 73 94 80 82Z" />
+      <path className="goat-front-leg" d="M125 80C124 96 127 108 137 118L149 115C141 104 138 94 140 80Z" />
+      <path className="goat-body" d="M42 54C54 27 103 22 132 40C158 56 152 84 123 94C91 105 51 93 40 70C36 62 37 57 42 54Z" />
+      <path className="goat-patch" d="M78 45C93 35 114 37 124 49C114 62 89 67 72 58C69 52 72 48 78 45Z" />
+      <path className="goat-neck" d="M122 39C134 27 153 27 162 40C169 51 160 65 144 67C129 69 119 55 122 39Z" />
+      <path className="goat-head" d="M145 31C163 27 178 37 178 52C178 64 165 72 151 68C139 65 134 54 137 43C138 38 141 34 145 31Z" />
+      <path className="goat-ear" d="M148 35C139 26 128 25 123 33C131 36 138 40 144 46Z" />
+      <path className="goat-horn rear" d="M149 30C151 18 158 10 169 6C166 18 160 27 152 34Z" />
+      <path className="goat-horn" d="M158 33C164 18 174 10 186 8C181 23 172 33 160 40Z" />
+      <path className="goat-beard" d="M160 66C159 79 151 88 139 91C143 79 147 70 152 64Z" />
+      <circle className="goat-eye" cx="162" cy="48" r="3.2" />
+      <path className="goat-smile" d="M168 58C163 61 158 61 154 57" />
+      <path className="goat-hoof back" d="M39 112L53 116" />
+      <path className="goat-hoof front" d="M137 118L151 115" />
+    </svg>
   );
 }
 

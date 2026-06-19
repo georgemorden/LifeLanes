@@ -29,7 +29,7 @@ export const DEFAULT_LANES = [
 ];
 
 const DEMO_DRAFTS = [
-  "Plan a weekly reset for calendar, money, training, meals, and one small admin task.",
+  "Plan a weekly reset for calendar, money, training, meals, and one small admin loop.",
   "Review career direction and list roles that fit operations, creative work, project coordination, and digital change.",
   "Build a simple evidence bank for applications, interviews, portfolio notes, and useful examples.",
   "Plan a low-friction fitness week with enough recovery to keep momentum sustainable.",
@@ -103,7 +103,7 @@ const DEMO_ITEMS: Array<{
   },
   {
     title: "Home admin list",
-    note: "Write down the boring but useful tasks that make the home feel easier to maintain.",
+    note: "Write down the boring but useful admin loops that make the home feel easier to maintain.",
     column: "todo",
     lane: "Home",
   },
@@ -173,7 +173,7 @@ const DEMO_ITEMS: Array<{
   },
   {
     title: "Application tracker",
-    note: "Create one place to track opportunities, deadlines, status, and useful follow-up notes.",
+    note: "Create one place to track opportunities, status, and useful follow-up notes.",
     column: "done",
     lane: "Career",
     endDate: "2026-06-09",

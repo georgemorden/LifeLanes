@@ -94,6 +94,24 @@ Run the TypeScript lint check:
 npm run lint
 ```
 
+Run the browser smoke tests:
+
+```bash
+npm run test:e2e
+```
+
+If the app is already running and you specifically want to test that live server:
+
+```bash
+npm run test:e2e:live
+```
+
+If Playwright asks for a browser on a fresh machine, install Chromium once:
+
+```bash
+npx playwright install chromium
+```
+
 ## Tech
 
 - React
@@ -101,6 +119,7 @@ npm run lint
 - Vite
 - Local storage
 - Plain CSS
+- Playwright smoke tests
 - PWA manifest and service worker shell
 
 ## Status

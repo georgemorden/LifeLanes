@@ -1,5 +1,15 @@
 export function registerAppServiceWorker() {
-  if (!("serviceWorker" in navigator) || import.meta.env.DEV) {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  if (import.meta.env.DEV) {
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => registrations.forEach((registration) => registration.unregister()))
+      .catch(() => {
+        // Development should never depend on the offline shell.
+      });
     return;
   }
 
