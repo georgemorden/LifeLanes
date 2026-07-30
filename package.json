@@ -2,7 +2,7 @@
   "name": "life-lanes",
   "version": "0.1.0",
   "private": true,
-  "description": "A calm, local-first board for brain dumps, life lanes, and personal priorities.",
+  "description": "A calm personal board for notes, priorities, and the different areas of life.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,9 @@
     "test:e2e:ui": "playwright test --ui --config=playwright.served.config.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

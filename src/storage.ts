@@ -13,13 +13,6 @@ import {
 import { type BoardColumn, type BoardItem, type BoardState, type DraftNote, type LifeLane, type PresetId } from "./types";
 
 export const BOARD_STORAGE_KEY = "life-lanes-two-panel-v1";
-export const PROFILE_STORAGE_KEY = "life-lanes-profile-v1";
-
-const LEGACY_NAME_STORAGE_KEY = "life-lanes-user-name-v1";
-
-export type BrowserProfile = {
-  userName: string;
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -40,15 +33,6 @@ function readLocalStorage(key: string) {
 function writeLocalStorage(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function removeLocalStorage(key: string) {
-  try {
-    localStorage.removeItem(key);
     return true;
   } catch {
     return false;
@@ -192,31 +176,4 @@ export function saveState(state: BoardState) {
   }
 
   return writeLocalStorage(BOARD_STORAGE_KEY, JSON.stringify(state));
-}
-
-export function loadProfile(): BrowserProfile {
-  try {
-    const raw = readLocalStorage(PROFILE_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (isRecord(parsed) && typeof parsed.userName === "string") {
-      return { userName: parsed.userName };
-    }
-  } catch {
-    // Fall through to the legacy key.
-  }
-
-  return { userName: readLocalStorage(LEGACY_NAME_STORAGE_KEY) ?? "" };
-}
-
-export function saveProfile(profile: BrowserProfile) {
-  const cleanName = profile.userName.trim();
-  if (!cleanName) {
-    const removedProfile = removeLocalStorage(PROFILE_STORAGE_KEY);
-    const removedLegacy = removeLocalStorage(LEGACY_NAME_STORAGE_KEY);
-    return removedProfile && removedLegacy;
-  }
-
-  const saved = writeLocalStorage(PROFILE_STORAGE_KEY, JSON.stringify({ userName: cleanName }));
-  removeLocalStorage(LEGACY_NAME_STORAGE_KEY);
-  return saved;
 }

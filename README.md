@@ -1,127 +1,69 @@
 # Life Lanes
 
-Life Lanes is a calm, local-first board for turning brain dumps into a focused life map.
+Life Lanes is a calm personal board for the things that compete for space in your head.
 
-It is built for the moments when priorities are scattered across work, money, health, learning, admin, ideas, and everything in between. Capture what is on your mind, sort it into the right life area, and keep a clear view of what is active, parked, or complete.
+![Life Lanes board](docs/screenshots/life-lanes-board.png)
 
-No account. No cloud. No team workspace. No productivity-bro noise.
+Capture a loose thought like a note, then place it where two questions meet:
 
-## The Idea
+- **What part of life is this?** Career, Fitness, Finance, Relationships, Creative, or any Life Lane you create.
+- **Where is it now?** Doing, To Do, Parked, or any state that suits the way you think.
 
-Life Lanes has three focused spaces:
+The result is a life map with the ease of a notes app and just enough structure to make priorities visible.
 
-- **Brain Dump**: capture loose thoughts quickly before they become mental clutter.
-- **My Life Lanes**: a compact personal board for active priorities.
-- **Achievements**: a lightweight record of what has moved through.
+## The Three Views
 
-The board uses simple states such as Doing, To Do, and Parked. Inside each state, items group into Life Lanes such as Career, Fitness, Finance, Creative, Health, Social, Travel, and Ideas.
+### My Life Lanes
 
-That makes it feel less like a task manager and more like a personal source of truth.
+A compact matrix with states across the top and Life Lanes down the side. Notes can be reordered or moved between any intersection with drag and drop. On mobile, one state is shown at a time so the board stays focused.
 
-## Guided Demo
+### Brain Dump
 
-The Demo board includes a guided walkthrough that shows the intended flow:
+A low-friction place for unfinished thoughts. Capture first, then use Triage to choose the right state and Life Lane when you are ready.
 
-1. Three separate Brain Dump notes appear:
-   - Career: complete a project management certification
-   - Fitness: build a 3-day gym routine
-   - Finance: save £500 for a holiday fund
-2. The highlighted Capture button moves them into Triage.
-3. The highlighted Sort button places them into the right Life Lanes automatically.
-4. The board demonstrates custom lanes, grouped cards, movement between states, and Achievements.
+### Achievements
 
-The demo is manual, so users stay in control while the app shows what to press next.
+A separate record of completed items, grouped by Life Lane. Completing an item clears it from the active board without throwing away the progress it represents.
 
-## Features
+## Highlights
 
-- Fast Brain Dump capture
-- Manual triage from notes into board items
-- Demo-guided sorting into Career, Fitness, and Finance examples
-- Compact board with Life Lane sub-lanes inside each state
-- Rename, add, and delete board lanes
-- Rename, add, and delete Life Lane tags
-- Drag-and-drop card movement with mobile-safe controls
-- Date ranges for longer-running goals
-- Item detail view with context across lanes
-- Separate Achievements view for completed items
-- Demo board and blank personal board
+- Blank personal board and a realistic, interactive demo
+- Separate personal and demo data with no crossover
+- Smooth pointer, touch, and keyboard-friendly drag and drop
+- Custom Life Lanes and custom board states
+- Optional date ranges for longer goals
+- Quick completion with undo and a small celebratory flourish
+- JSON export and import
 - Local browser persistence
-- Installable app metadata and offline shell
-
-## Default Life Lanes
-
-Life Lanes starts with a balanced set of tags:
-
-- Lifestyle
-- Career
-- Fitness
-- Finance
-- Upskilling
-- Social
-- Adventure
-- Health
-- Creative
-- Home
-- Life Admin
-- Relationships
-- Travel
-- Ideas
-
-You can rename, remove, or add your own.
+- Responsive layout designed for phone and desktop
+- Installable offline shell
+- No account, backend, analytics, or AI API
 
 ## Privacy
 
-Life Lanes is local-first.
+Life Lanes stores the personal board in the browser. Nothing is sent to a server.
 
-Your data is stored in your browser using local storage. There is no backend, no authentication, no database, no analytics, no payments, and no AI API.
+The Demo is temporary and separate from personal data. Refreshing it gives you a clean example board without changing your own Life Lanes.
 
-## Run Locally
+## Run It
 
 ```bash
 npm install
 npm run dev
 ```
 
-Build and typecheck:
+Open the local address shown in the terminal.
+
+To verify a production build:
 
 ```bash
 npm run build
 ```
 
-Run the TypeScript lint check:
+## Built With
 
-```bash
-npm run lint
-```
+React, TypeScript, Vite, dnd-kit, Lucide icons, localStorage, and focused custom CSS.
 
-Run the browser smoke tests:
+## License
 
-```bash
-npm run test:e2e
-```
-
-If the app is already running and you specifically want to test that live server:
-
-```bash
-npm run test:e2e:live
-```
-
-If Playwright asks for a browser on a fresh machine, install Chromium once:
-
-```bash
-npx playwright install chromium
-```
-
-## Tech
-
-- React
-- TypeScript
-- Vite
-- Local storage
-- Plain CSS
-- Playwright smoke tests
-- PWA manifest and service worker shell
-
-## Status
-
-Life Lanes is an early product prototype focused on a polished core experience: capture, triage, life-area grouping, calm board movement, and a guided demo that makes the workflow obvious.
+[MIT](LICENSE)
