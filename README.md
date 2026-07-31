@@ -30,20 +30,24 @@ A separate record of completed items, grouped by Life Lane. Completing an item c
 - Blank personal board and a realistic, interactive demo
 - Separate personal and demo data with no crossover
 - Smooth pointer, touch, and keyboard-friendly drag and drop
+- Two-level arrow-key navigation across views, states, and items
 - Custom Life Lanes and custom board states
 - Optional date ranges for longer goals
+- Search by item, note, or Life Lane, with a compact priority filter
 - Quick completion with undo and a small celebratory flourish
-- JSON export and import
-- Local browser persistence
+- Previewed JSON import with merge or replace options
+- Recovery-aware browser persistence and cross-tab syncing
 - Responsive layout designed for phone and desktop
 - Installable offline shell
 - No account, backend, analytics, or AI API
 
 ## Privacy
 
-Life Lanes stores the personal board in the browser. Nothing is sent to a server.
+Life Lanes stores the personal board in the browser. Nothing is sent to a server. Browser storage is not encrypted, so anyone with access to the same browser profile can open the board.
 
 The Demo is temporary and separate from personal data. Refreshing it gives you a clean example board without changing your own Life Lanes.
+
+Export creates a portable backup. Import previews its contents first, and replacing a board keeps a recovery copy of the previous state.
 
 ## Run It
 
@@ -60,9 +64,16 @@ To verify a production build:
 npm run build
 ```
 
+The repository also includes desktop and mobile journey tests plus an offline-shell check:
+
+```bash
+npm run test:e2e
+npm run test:pwa
+```
+
 ## Built With
 
-React, TypeScript, Vite, dnd-kit, Lucide icons, localStorage, and focused custom CSS.
+React, TypeScript, Vite, dnd-kit, Playwright, Lucide icons, localStorage, and focused custom CSS.
 
 ## License
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   achievementColumnId,
   achievementColumns,
@@ -10,12 +10,15 @@ import { AppHeader } from "./components/AppHeader";
 import { BoardMatrix } from "./components/BoardMatrix";
 import { BrainDumpView } from "./components/BrainDumpView";
 import {
+  ConfirmActionDialog,
+  DeleteDestinationDialog,
   ItemDialog,
   ManageBoardDialog,
   TriageDialog,
 } from "./components/Dialogs";
 import {
   CompletionFlight,
+  StorageNotice,
   Toast,
   TourBar,
 } from "./components/Feedback";
@@ -41,11 +44,7 @@ import {
   type LaneIconName,
 } from "./types";
 
-const TOAST_DURATION = 5000;
-
-type ViewTransitionDocument = Document & {
-  startViewTransition?: (update: () => void) => unknown;
-};
+const VIEW_ORDER: ViewId[] = ["board", "capture", "achievements"];
 
 function fallbackActiveColumn(state: BoardState) {
   const columns = activeColumns(state.columns);
@@ -95,55 +94,151 @@ export default function App() {
     switchPreset,
     resetDemo,
     resetPersonal,
+    replacePersonalState,
     exportPersonalState,
+    previewPersonalImport,
     importPersonalState,
+    persistenceIssue,
+    dismissPersistenceIssue,
   } = useLifeLanesState();
 
   const [activeView, setActiveView] = useState<ViewId>("board");
+  const [viewEntrySource, setViewEntrySource] = useState<"pointer" | "keyboard">(
+    "pointer",
+  );
+  const [viewDirection, setViewDirection] = useState<"forward" | "backward">(
+    "forward",
+  );
   const [editor, setEditor] = useState<ItemEditorState | null>(null);
   const [triageDraft, setTriageDraft] = useState<DraftNote | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [deleteRequest, setDeleteRequest] = useState<{
+    type: "lane" | "column";
+    id: string;
+  } | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [celebrationId, setCelebrationId] = useState<string | null>(null);
-  const supportsViewTransitions =
-    typeof (document as ViewTransitionDocument).startViewTransition ===
-    "function";
+  const changeView = useCallback(
+    (
+      nextView: ViewId,
+      source: "pointer" | "keyboard" = "pointer",
+    ) => {
+      if (nextView === activeView) return;
 
-  const changeView = (nextView: ViewId) => {
-    if (nextView === activeView) return;
+      const currentIndex = VIEW_ORDER.indexOf(activeView);
+      const nextIndex = VIEW_ORDER.indexOf(nextView);
+      const direction = nextIndex >= currentIndex ? "forward" : "backward";
+      setViewEntrySource(source);
+      setViewDirection(direction);
+      document.documentElement.dataset.viewDirection = direction;
+      setActiveView(nextView);
+    },
+    [activeView],
+  );
 
-    const transitionDocument = document as ViewTransitionDocument;
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-
-    if (transitionDocument.startViewTransition && !reduceMotion) {
-      transitionDocument.startViewTransition(() => setActiveView(nextView));
-      return;
-    }
-
-    setActiveView(nextView);
+  const enterView = (view: ViewId) => {
+    window.requestAnimationFrame(() => {
+      const panel = document.querySelector<HTMLElement>(
+        `[data-workspace-panel="${view}"]`,
+      );
+      if (!panel) return;
+      const entry = Array.from(
+        panel.querySelectorAll<HTMLElement>("[data-workspace-entry]"),
+      ).find((element) => element.offsetParent !== null);
+      (entry ?? panel).focus({ preventScroll: true });
+    });
   };
+
+  useEffect(() => {
+    const handleWorkspaceNavigation = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const activePanel = target?.closest<HTMLElement>(
+        `[data-workspace-panel="${activeView}"]`,
+      );
+
+      const focusWorkspaceNavigation = () => {
+        document
+          .getElementById(`workspace-nav-${activeView}`)
+          ?.focus({ preventScroll: true });
+      };
+
+      if (event.key === "Escape") {
+        if (!activePanel) return;
+        event.preventDefault();
+        focusWorkspaceNavigation();
+        return;
+      }
+
+      if (event.key === "ArrowUp" && activePanel) {
+        const isAchievementEntry = activeView === "achievements";
+        const isComposerFirstLine =
+          activeView === "capture" &&
+          target instanceof HTMLTextAreaElement &&
+          target.selectionStart === target.selectionEnd &&
+          !target.value.slice(0, target.selectionStart).includes("\n");
+
+        if (isAchievementEntry || isComposerFirstLine) {
+          event.preventDefault();
+          focusWorkspaceNavigation();
+        }
+        return;
+      }
+
+      if (
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+      ) {
+        return;
+      }
+
+      const ownsArrowKeys = target?.closest(
+        [
+          "input",
+          "textarea",
+          "select",
+          "[contenteditable='true']",
+          "[role='dialog']",
+          "[role='listbox']",
+          "[role='menu']",
+          "[role='slider']",
+          "[data-board-nav]",
+          ".lane-drag-handle",
+          ".note-drag-handle",
+        ].join(","),
+      );
+      if (ownsArrowKeys) return;
+
+      const currentIndex = VIEW_ORDER.indexOf(activeView);
+      const offset = event.key === "ArrowRight" ? 1 : -1;
+      const nextIndex = (currentIndex + offset + VIEW_ORDER.length) % VIEW_ORDER.length;
+      const nextView = VIEW_ORDER[nextIndex];
+      event.preventDefault();
+      changeView(nextView, "keyboard");
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById(`workspace-nav-${nextView}`)
+          ?.focus({ preventScroll: true });
+      });
+    };
+
+    window.addEventListener("keydown", handleWorkspaceNavigation);
+    return () =>
+      window.removeEventListener("keydown", handleWorkspaceNavigation);
+  }, [activeView, changeView]);
 
   const achievementIds = useMemo(
     () => new Set(achievementColumns(state.columns).map((column) => column.id)),
     [state.columns],
   );
-  const activeItems = useMemo(
-    () => state.items.filter((item) => !achievementIds.has(item.column)),
-    [achievementIds, state.items],
-  );
   const completedItems = useMemo(
     () => state.items.filter((item) => achievementIds.has(item.column)),
     [achievementIds, state.items],
   );
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), TOAST_DURATION);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
 
   useEffect(() => {
     if (!celebrationId) return;
@@ -459,27 +554,8 @@ export default function App() {
   const deleteLane = (id: string) => {
     const lane = state.lanes.find((candidate) => candidate.id === id);
     if (!lane || state.lanes.length <= 1) return;
-    const itemCount = state.items.filter((item) => item.laneId === id).length;
-    if (
-      itemCount > 0 &&
-      !window.confirm(
-        `Delete ${lane.name}? Its ${itemCount} item${itemCount === 1 ? "" : "s"} will move to another Life Lane.`,
-      )
-    ) {
-      return;
-    }
-
-    updateState((current) => {
-      const fallback = current.lanes.find((candidate) => candidate.id !== id);
-      if (!fallback) return current;
-      return {
-        ...current,
-        lanes: current.lanes.filter((candidate) => candidate.id !== id),
-        items: current.items.map((item) =>
-          item.laneId === id ? { ...item, laneId: fallback.id } : item,
-        ),
-      };
-    });
+    setManageOpen(false);
+    setDeleteRequest({ type: "lane", id });
   };
 
   const addColumn = (name: string) => {
@@ -506,45 +582,81 @@ export default function App() {
     const column = state.columns.find((candidate) => candidate.id === id);
     const available = activeColumns(state.columns);
     if (!column || isAchievementColumn(column) || available.length <= 1) return;
-    const itemCount = state.items.filter((item) => item.column === id).length;
-    if (
-      itemCount > 0 &&
-      !window.confirm(
-        `Delete ${column.title}? Its ${itemCount} item${itemCount === 1 ? "" : "s"} will move to another state.`,
-      )
-    ) {
-      return;
-    }
-
-    updateState((current) => {
-      const fallback = activeColumns(current.columns).find(
-        (candidate) => candidate.id !== id,
-      );
-      if (!fallback) return current;
-      return {
-        ...current,
-        columns: current.columns.filter((candidate) => candidate.id !== id),
-        items: current.items.map((item) =>
-          item.column === id ? { ...item, column: fallback.id } : item,
-        ),
-      };
-    });
+    setManageOpen(false);
+    setDeleteRequest({ type: "column", id });
   };
 
   const resetBoard = () => {
-    const boardName = preset === "demo" ? "the demo" : "your board";
-    if (!window.confirm(`Reset ${boardName}? This cannot be undone.`)) return;
+    setManageOpen(false);
+    setResetConfirmOpen(true);
+  };
+
+  const confirmResetBoard = () => {
+    const previousState = state;
+    const previousPreset = preset;
     if (preset === "demo") {
       resetDemo();
     } else {
       resetPersonal();
     }
+    setResetConfirmOpen(false);
     setManageOpen(false);
-    showToast(preset === "demo" ? "Demo reset" : "Board cleared");
+    showToast(preset === "demo" ? "Demo reset" : "Board cleared", "Undo", () => {
+      if (previousPreset === "demo") {
+        updateState(() => previousState);
+      } else {
+        replacePersonalState(previousState);
+      }
+      setToast(null);
+    });
+  };
+
+  const confirmDelete = (destinationId: string) => {
+    if (!deleteRequest) return;
+    const previousState = state;
+    const request = deleteRequest;
+    const deletedName =
+      request.type === "lane"
+        ? state.lanes.find((lane) => lane.id === request.id)?.name
+        : state.columns.find((column) => column.id === request.id)?.title;
+
+    updateState((current) => {
+      if (request.type === "lane") {
+        if (!current.lanes.some((lane) => lane.id === destinationId)) return current;
+        return {
+          ...current,
+          lanes: current.lanes.filter((lane) => lane.id !== request.id),
+          items: current.items.map((item) =>
+            item.laneId === request.id
+              ? { ...item, laneId: destinationId, updatedAt: nowStamp() }
+              : item,
+          ),
+        };
+      }
+
+      if (!activeColumns(current.columns).some((column) => column.id === destinationId)) {
+        return current;
+      }
+      return {
+        ...current,
+        columns: current.columns.filter((column) => column.id !== request.id),
+        items: current.items.map((item) =>
+          item.column === request.id
+            ? { ...item, column: destinationId, updatedAt: nowStamp() }
+            : item,
+        ),
+      };
+    });
+    setDeleteRequest(null);
+    showToast(`${deletedName ?? "Entry"} deleted`, "Undo", () => {
+      updateState(() => previousState);
+      setToast(null);
+    });
   };
 
   const changePreset = (nextPreset: "draft" | "demo") => {
     switchPreset(nextPreset);
+    setViewEntrySource("pointer");
     setActiveView("board");
     setEditor(null);
     setTriageDraft(null);
@@ -561,20 +673,27 @@ export default function App() {
   };
 
   return (
-    <div
-      className={
-        supportsViewTransitions
-          ? "app-shell supports-view-transitions"
-          : "app-shell"
-      }
-    >
+    <div className={`app-shell view-${viewDirection}`}>
       <AppHeader
         activeView={activeView}
         preset={preset}
         onChangeView={changeView}
+        onEnterView={enterView}
         onChangePreset={changePreset}
         onStartTour={startTour}
       />
+
+      {persistenceIssue ? (
+        <StorageNotice
+          message={persistenceIssue.message}
+          onDownload={() =>
+            downloadJson(
+              persistenceIssue.recoveryData ?? exportPersonalState(),
+            )
+          }
+          onDismiss={dismissPersistenceIssue}
+        />
+      ) : null}
 
       {tourStep !== null ? (
         <TourBar
@@ -593,13 +712,14 @@ export default function App() {
           onMoveItem={moveItem}
           onMoveLane={reorderLane}
           onManageBoard={() => setManageOpen(true)}
+          focusOnMount={false}
         />
       ) : null}
 
       {activeView === "capture" ? (
         <BrainDumpView
           drafts={state.drafts}
-          focusComposer
+          focusComposer={viewEntrySource !== "keyboard"}
           onCapture={captureDraft}
           onSort={setTriageDraft}
           onDelete={deleteDraft}
@@ -649,15 +769,64 @@ export default function App() {
           onRenameColumn={renameColumn}
           onDeleteColumn={deleteColumn}
           onExport={() => downloadJson(exportPersonalState())}
-          onImport={(value) => {
-            const imported = importPersonalState(value);
+          onPreviewImport={previewPersonalImport}
+          onImport={(value, mode) => {
+            const previousState = state;
+            const imported = importPersonalState(value, mode);
             if (imported) {
               setActiveView("board");
               setManageOpen(false);
+              showToast(mode === "merge" ? "Backup merged" : "Backup imported", "Undo", () => {
+                replacePersonalState(previousState);
+                setToast(null);
+              });
             }
             return imported;
           }}
           onReset={resetBoard}
+        />
+      ) : null}
+
+      {deleteRequest ? (() => {
+        const isLane = deleteRequest.type === "lane";
+        const name = isLane
+          ? state.lanes.find((lane) => lane.id === deleteRequest.id)?.name
+          : state.columns.find((column) => column.id === deleteRequest.id)?.title;
+        const itemCount = state.items.filter((item) =>
+          isLane ? item.laneId === deleteRequest.id : item.column === deleteRequest.id,
+        ).length;
+        const destinations = isLane
+          ? state.lanes
+              .filter((lane) => lane.id !== deleteRequest.id)
+              .map((lane) => ({ id: lane.id, label: lane.name }))
+          : activeColumns(state.columns)
+              .filter((column) => column.id !== deleteRequest.id)
+              .map((column) => ({ id: column.id, label: column.title }));
+        return (
+          <DeleteDestinationDialog
+            name={name ?? (isLane ? "Life Lane" : "state")}
+            itemCount={itemCount}
+            destinationLabel={isLane ? "Move items to" : "Move items to state"}
+            destinations={destinations}
+            onClose={() => {
+              setDeleteRequest(null);
+              setManageOpen(true);
+            }}
+            onConfirm={confirmDelete}
+          />
+        );
+      })() : null}
+
+      {resetConfirmOpen ? (
+        <ConfirmActionDialog
+          title={preset === "demo" ? "Reset demo?" : "Clear this board?"}
+          message="A recovery copy will be kept, and you can undo immediately afterwards."
+          confirmLabel={preset === "demo" ? "Reset demo" : "Clear board"}
+          onClose={() => {
+            setResetConfirmOpen(false);
+            setManageOpen(true);
+          }}
+          onConfirm={confirmResetBoard}
         />
       ) : null}
 

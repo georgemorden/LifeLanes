@@ -1,4 +1,5 @@
-import { Check, ChevronLeft, ChevronRight, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Download, Sparkles, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { TOUR_STEPS } from "../tour";
 import { type ToastMessage } from "../ui-types";
 
@@ -9,8 +10,26 @@ export function Toast({
   toast: ToastMessage;
   onClose: () => void;
 }) {
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (paused) return;
+    const timer = window.setTimeout(onClose, toast.onAction ? 10_000 : 6_000);
+    return () => window.clearTimeout(timer);
+  }, [onClose, paused, toast.id, toast.onAction]);
+
   return (
-    <div className="toast" role="status" aria-live="polite">
+    <div
+      className="toast"
+      role="status"
+      aria-live="polite"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false);
+      }}
+    >
       <span className="toast-icon"><Check size={15} /></span>
       <p>{toast.message}</p>
       {toast.actionLabel && toast.onAction ? (
@@ -20,6 +39,30 @@ export function Toast({
         <X size={15} />
       </button>
     </div>
+  );
+}
+
+export function StorageNotice({
+  message,
+  onDownload,
+  onDismiss,
+}: {
+  message: string;
+  onDownload: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <aside className="storage-notice" role="alert">
+      <AlertTriangle size={17} aria-hidden="true" />
+      <p>{message}</p>
+      <button className="secondary-button" type="button" onClick={onDownload}>
+        <Download size={15} />
+        Download backup
+      </button>
+      <button className="icon-button" type="button" onClick={onDismiss} aria-label="Dismiss storage message">
+        <X size={16} />
+      </button>
+    </aside>
   );
 }
 

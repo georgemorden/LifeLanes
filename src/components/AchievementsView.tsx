@@ -27,9 +27,15 @@ export function AchievementsView({
         .filter((group) => group.items.length),
     [items, lanes],
   );
+  const firstAchievementId = grouped[0]?.items[0]?.id;
 
   return (
-    <main className="achievements-view">
+    <main
+      id="workspace-achievements"
+      className="achievements-view"
+      data-workspace-panel="achievements"
+      tabIndex={-1}
+    >
       <header className="achievements-heading">
         <div>
           <h2>Achievements</h2>
@@ -54,7 +60,12 @@ export function AchievementsView({
               <div className="achievement-list">
                 {laneItems.map((item) => (
                   <article className="achievement-row" key={item.id}>
-                    <button className="achievement-open" type="button" onClick={() => onOpenItem(item)}>
+                    <button
+                      className="achievement-open"
+                      type="button"
+                      data-workspace-entry={item.id === firstAchievementId ? "" : undefined}
+                      onClick={() => onOpenItem(item)}
+                    >
                       <strong>{item.title}</strong>
                       {dateRangeLabel(item) ? <span>{dateRangeLabel(item)}</span> : null}
                       {item.note ? <p>{item.note}</p> : null}

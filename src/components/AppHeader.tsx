@@ -1,12 +1,17 @@
 import { Play } from "lucide-react";
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { type BoardPreset } from "../hooks/useLifeLanesState";
 import { type ViewId } from "../ui-types";
 
 type AppHeaderProps = {
   activeView: ViewId;
   preset: BoardPreset;
-  onChangeView: (view: ViewId) => void;
+  onChangeView: (view: ViewId, source?: "pointer" | "keyboard") => void;
+  onEnterView: (view: ViewId) => void;
   onChangePreset: (preset: BoardPreset) => void;
   onStartTour: () => void;
 };
@@ -21,49 +26,71 @@ export function AppHeader({
   activeView,
   preset,
   onChangeView,
+  onEnterView,
   onChangePreset,
   onStartTour,
 }: AppHeaderProps) {
-  const navRef = useRef<HTMLElement | null>(null);
   const buttonRefs = useRef<Record<ViewId, HTMLButtonElement | null>>({
     board: null,
     capture: null,
     achievements: null,
   });
-  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
 
   useLayoutEffect(() => {
-    const nav = navRef.current;
-    const activeButton = buttonRefs.current[activeView];
-    if (!nav || !activeButton) return;
+    const frame = window.requestAnimationFrame(() => {
+      buttonRefs.current[activeView]?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
-    const measure = () => {
-      setIndicator({
-        left: activeButton.offsetLeft + 14,
-        width: Math.max(0, activeButton.offsetWidth - 28),
-      });
-    };
+  const handleNavigationKey = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
 
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(nav);
-    return () => observer.disconnect();
-  }, [activeView]);
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      onEnterView(NAV_ITEMS[currentIndex].id);
+      return;
+    }
 
-  const indicatorStyle = {
-    "--indicator-x": `${indicator.left}px`,
-    "--indicator-width": `${indicator.width}px`,
-  } as CSSProperties;
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowLeft") {
+      nextIndex = (currentIndex - 1 + NAV_ITEMS.length) % NAV_ITEMS.length;
+    } else if (event.key === "ArrowRight") {
+      nextIndex = (currentIndex + 1) % NAV_ITEMS.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = NAV_ITEMS.length - 1;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    const nextView = NAV_ITEMS[nextIndex].id;
+    onChangeView(nextView, "keyboard");
+    window.requestAnimationFrame(() => {
+      buttonRefs.current[nextView]?.focus({ preventScroll: true });
+    });
+  };
 
   return (
     <header className="app-header">
       <div className="brand">
-        <img src="/icon.svg" alt="" width="40" height="40" />
+        <span className="brand-mark" data-view={activeView} aria-hidden="true">
+          <img src="/icon.svg" alt="" width="40" height="40" />
+        </span>
         <h1>Life Lanes</h1>
       </div>
 
-      <nav ref={navRef} className="primary-nav" aria-label="Workspace">
-        {NAV_ITEMS.map((item) => (
+      <nav
+        className="primary-nav"
+        aria-label="Workspace"
+        aria-keyshortcuts="ArrowLeft ArrowRight ArrowDown Home End"
+      >
+        {NAV_ITEMS.map((item, index) => (
           <button
             ref={(node) => {
               buttonRefs.current[item.id] = node;
@@ -71,18 +98,20 @@ export function AppHeader({
             className={activeView === item.id ? "nav-button active" : "nav-button"}
             type="button"
             key={item.id}
-            onClick={() => onChangeView(item.id)}
+            id={`workspace-nav-${item.id}`}
+            tabIndex={activeView === item.id ? 0 : -1}
+            onClick={(event) => {
+              onChangeView(item.id, "pointer");
+              event.currentTarget.focus({ preventScroll: true });
+            }}
+            onKeyDown={(event) => handleNavigationKey(event, index)}
             aria-current={activeView === item.id ? "page" : undefined}
+            aria-controls={`workspace-${item.id}`}
             aria-label={`Open ${item.label}`}
           >
             {item.label}
           </button>
         ))}
-        <span
-          className={indicator.width ? "nav-active-indicator ready" : "nav-active-indicator"}
-          style={indicatorStyle}
-          aria-hidden="true"
-        />
       </nav>
 
       <div className="header-actions">

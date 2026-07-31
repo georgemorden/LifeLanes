@@ -13,6 +13,7 @@ import {
 } from "./types";
 
 export const DEFAULT_LANE_VERSION = 3;
+export const BOARD_SCHEMA_VERSION = 2;
 
 export const DEFAULT_LANES = [
   "Lifestyle",
@@ -226,7 +227,8 @@ const LEGACY_DEMO_ITEM_TITLES = new Set([
 ]);
 
 export function createId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
+  const randomPart = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+  return `${prefix}-${randomPart}`;
 }
 
 export function nowStamp() {
@@ -263,6 +265,7 @@ export function createColumn(title: string): BoardColumn {
   return {
     id: createId("column"),
     title,
+    kind: "active",
     createdAt: nowStamp(),
   };
 }
@@ -272,6 +275,7 @@ export function createDefaultColumns(): BoardColumn[] {
   return KANBAN_COLUMNS.map((column) => ({
     id: column.id,
     title: column.title,
+    kind: column.id === "done" ? "achievement" : "active",
     createdAt: stamp,
   }));
 }
@@ -284,8 +288,10 @@ export function createBoardState(preset: PresetId = "draft"): BoardState {
   if (preset === "demo") {
     const laneByName = new Map(lanes.map((lane) => [lane.name, lane.id]));
     return {
+      schemaVersion: BOARD_SCHEMA_VERSION,
       preset,
       defaultLaneVersion: DEFAULT_LANE_VERSION,
+      updatedAt: stamp,
       columns,
       lanes,
       drafts: DEMO_DRAFTS.map((text, index) => ({
@@ -310,8 +316,10 @@ export function createBoardState(preset: PresetId = "draft"): BoardState {
   }
 
   return {
+    schemaVersion: BOARD_SCHEMA_VERSION,
     preset,
     defaultLaneVersion: DEFAULT_LANE_VERSION,
+    updatedAt: stamp,
     columns,
     lanes,
     drafts: [],

@@ -1,71 +1,46 @@
 # Life Lanes Design QA
 
-## Sources
+## Reference And Evidence
 
-- Visual target: `docs/design/life-lanes-matrix-concept.png`
-- Final implementation: `/tmp/lifelanes-product-audit-20260730/implementation-final.png`
-- Combined comparison: `/tmp/lifelanes-product-audit-20260730/source-vs-implementation.png`
-- Browser viewport override: 1440 x 1024
-- Captured PNG: 1430 x 1017 at 1x density
-- State: Demo / My Life Lanes / populated board / top of page / no modal
+- Visual direction: `docs/design/life-lanes-matrix-concept.png`
+- Current product capture: `docs/screenshots/life-lanes-board.png`
+- Desktop viewport: 1440 x 900
+- Mobile viewport: 390 x 844
+- Captured state: Demo / My Life Lanes / populated board / no modal
 
-The source image was normalized from 1487 x 1058 to the implementation capture size before the side-by-side comparison. The aspect ratios differ by less than 0.1%.
+## Visual System
 
-## Full Comparison
+Life Lanes uses a compact graphite workspace, thin dividers, restrained sea-glass actions, and selective Life Lane accents. Cards behave like structured notes rather than floating dashboard tiles. Typography, control heights, borders, and icon weights remain consistent across My Life Lanes, Brain Dump, Achievements, and dialogs.
 
-### Typography
+The matrix keeps states across the top and Life Lanes down the side. The Life Lane column and state header stay aligned while the board scrolls. The footer now holds search, priority filtering, lane visibility, and customization without creating a separate toolbar or reducing the useful board area.
 
-The implementation preserves the target's compact sans-serif hierarchy: a bold product name, medium-weight navigation, restrained column headings, and dense one-line note titles. The implementation intentionally truncates long note titles to keep the matrix more scannable than the concept's occasional two-line cards. Letter spacing remains 0.
+## Responsive Behavior
 
-### Spacing And Layout
+Desktop shows the full matrix. Mobile presents one state at a time using semantic tabs, preserves drag and completion controls, and keeps search and filtering within the board footer. At 390 x 844 there is no page-width overflow, visible buttons meet the 24 px minimum target size, and text does not overlap adjacent controls.
 
-The state-across/lane-down matrix, sticky Life Lane column, header alignment, cell dividers, and footer placement match the target. An early implementation kept hidden add controls in document flow and made every row too tall; those controls are now overlaid in populated cells, allowing all seven active Life Lanes and the footer to fit in the target frame.
+## Interaction And Accessibility
 
-### Viewport Resilience
+- Pointer, touch, and keyboard Life Lane and item reordering
+- Persisted lane collapse, lane visibility, and selected mobile state
+- Dialog focus placement, focus trapping, Escape dismissal, and focus return
+- Explicit mobile tab roles and selected state
+- Visible focus rings and reduced-motion support
+- Toasts that pause while hovered or focused and allow longer undo time
+- Search across item title, notes, and Life Lane, plus priority filtering
 
-Desktop was checked at 1440 x 1024 and mobile at 390 x 844. Mobile switches to one state at a time, keeps the Life Lane label beside the active state, preserves completion and drag controls, and shows no incoherent overlap or horizontal page overflow.
+## Data Safety
 
-### Colors And Surfaces
+- Versioned saved data with migration from legacy boards
+- Explicit active and achievement state types, independent of user-facing names
+- Strict import limits, ID deduplication, date validation, and guaranteed achievement state
+- Import preview with merge and replace paths
+- Recovery snapshots before reset or replacement
+- Destination choice and undo when deleting populated Life Lanes or states
+- Visible warning and downloadable backup when browser storage fails
+- Cross-tab updates for the same browser profile
 
-The implementation uses the same graphite/ink base, thin neutral dividers, sea-glass primary action, and selective cool lane accents. Cards remain square-edged enough to feel like notes rather than generic floating dashboard cards. There are no decorative gradients, blobs, or fog effects.
+## Verification
 
-### Image And Asset Quality
-
-The product mark is a simplified existing SVG brand asset. Completion uses a generated raster goat asset with transparent corners and a dark-interface-compatible palette. At its rendered size, the chroma-key edge is not visible. No placeholder imagery, emoji, or CSS illustration substitutes remain.
-
-### Copy And Content
-
-Navigation and controls use short product language: My Life Lanes, Brain Dump, Achievements, Capture, Sort, and Customize. The interface avoids explanatory marketing copy on the primary board. Demo content is generic, realistic, and name-blind.
-
-### Icons
-
-All interface icons use one Lucide family with consistent stroke weights. Life Lane icons are color-coded without filled-square artifacts. Familiar actions have accessible names and do not rely on unlabeled text symbols.
-
-### States And Interactions
-
-Verified in the in-app browser: personal/demo switching, Brain Dump capture, triage, item creation/editing, drag between states, completion, undo, Achievements, restore, custom Life Lanes, custom states, reload persistence, and mobile state switching. Console warnings and errors: none.
-
-### Accessibility
-
-Semantic buttons, labelled fields, visible focus rings, keyboard drag support, touch drag delay, practical mobile targets, reduced-motion handling, and an explicit accessible label for the icon-only mobile Capture control are present. Color is never the sole state indicator.
-
-## Focused Comparison
-
-No separate crop was required. The only material fidelity issues were global row density and lane icon treatment, both clearly visible and resolved in the full-frame side-by-side comparison.
-
-## QA History
-
-1. Fixed lane icons that inherited lane background colors and rendered as solid squares.
-2. Removed hidden add controls from populated-cell layout flow to restore the target's compact row rhythm.
-3. Added an accessible name to the icon-only mobile Capture action.
-4. Re-tested the complete, restore, drag, persistence, customization, and mobile flows after the visual fixes.
-5. Re-captured and compared the final populated Demo board.
-
-## Accepted Deviations
-
-- The implementation includes the requested Demo tour control in the header.
-- Note cards are slightly shorter and keep titles to one line for faster scanning.
-- The footer uses working Show all and Customize controls instead of static drag guidance.
-- Demo Life Lane order follows the product's default lane order rather than duplicating the concept exactly.
+The production build, TypeScript checks, desktop/mobile browser journeys, malformed-import coverage, storage-failure recovery, cross-tab syncing, deletion recovery, and offline-shell test pass. The rendered app was reviewed at desktop and mobile widths with no browser console warnings or errors.
 
 Final result: passed

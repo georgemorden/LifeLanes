@@ -6,12 +6,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "preview": "vite preview",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit --pretty false",
     "lint": "tsc --noEmit --pretty false",
     "test:e2e": "playwright test --config=playwright.served.config.ts",
     "test:e2e:live": "playwright test",
-    "test:e2e:ui": "playwright test --ui --config=playwright.served.config.ts"
+    "test:e2e:ui": "playwright test --ui --config=playwright.served.config.ts",
+    "test:pwa": "playwright test --config=playwright.pwa.config.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

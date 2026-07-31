@@ -31,10 +31,12 @@ export type LaneColor = (typeof LANE_COLORS)[number];
 export type LaneIconName = (typeof LANE_ICONS)[number];
 export type ItemPriority = (typeof ITEM_PRIORITIES)[number];
 export type PresetId = "draft" | "demo" | "custom";
+export type ColumnKind = "active" | "achievement";
 
 export interface BoardColumn {
   id: ColumnId;
   title: string;
+  kind: ColumnKind;
   createdAt: string;
 }
 
@@ -67,8 +69,10 @@ export interface BoardItem {
 }
 
 export interface BoardState {
+  schemaVersion: number;
   preset: PresetId;
   defaultLaneVersion: number;
+  updatedAt: string;
   columns: BoardColumn[];
   lanes: LifeLane[];
   drafts: DraftNote[];

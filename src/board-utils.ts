@@ -1,9 +1,7 @@
 import { type BoardColumn, type BoardItem } from "./types";
 
-const ACHIEVEMENT_TITLES = new Set(["done", "completed", "achievements"]);
-
-export function isAchievementColumn(column: Pick<BoardColumn, "id" | "title">) {
-  return column.id === "done" || ACHIEVEMENT_TITLES.has(column.title.trim().toLowerCase());
+export function isAchievementColumn(column: Pick<BoardColumn, "kind">) {
+  return column.kind === "achievement";
 }
 
 export function activeColumns(columns: BoardColumn[]) {

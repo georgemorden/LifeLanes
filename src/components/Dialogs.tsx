@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -37,6 +38,7 @@ import {
 } from "react";
 import { activeColumns, isAchievementColumn } from "../board-utils";
 import { firstLine, remainingLines } from "../board-utils";
+import { MAX_IMPORT_FILE_BYTES, type ImportPreview } from "../storage";
 import { LANE_ICON_OPTIONS } from "../lane-icons";
 import { type ItemDraft, type ItemEditorState } from "../ui-types";
 import {
@@ -99,33 +101,82 @@ function DialogFrame({
   wide?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const dialog = dialogRef.current;
+    const focusableSelector = [
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[href]",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(focusableSelector),
+      ).filter((element) => element.offsetParent !== null);
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    dialogRef.current?.focus();
-    return () => window.removeEventListener("keydown", onKeyDown);
+    const frame = window.requestAnimationFrame(() => {
+      const initialTarget =
+        dialog?.querySelector<HTMLElement>("[data-dialog-autofocus]") ??
+        dialog?.querySelector<HTMLElement>(focusableSelector);
+      (initialTarget ?? dialog)?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
+    };
   }, [onClose]);
 
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className="dialog-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <section
         ref={dialogRef}
         className={wide ? "dialog dialog-wide" : "dialog"}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="dialog-title"
+        aria-labelledby={titleId}
+        aria-describedby={subtitle ? descriptionId : undefined}
         tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="dialog-header">
           <div>
-            <h2 id="dialog-title">{title}</h2>
-            {subtitle ? <p>{subtitle}</p> : null}
+            <h2 id={titleId}>{title}</h2>
+            {subtitle ? <p id={descriptionId}>{subtitle}</p> : null}
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close dialog">
             <X size={18} />
@@ -196,7 +247,7 @@ export function ItemDialog({
             onChange={(event) => setDraft({ ...draft, title: event.target.value })}
             placeholder="What is moving?"
             aria-label="Item title"
-            autoFocus
+            data-dialog-autofocus
           />
         </label>
 
@@ -257,6 +308,7 @@ export function ItemDialog({
             <input
               type="date"
               value={draft.startDate}
+              max={draft.endDate || undefined}
               onChange={(event) => setDraft({ ...draft, startDate: event.target.value })}
               aria-label="Start date"
             />
@@ -266,6 +318,7 @@ export function ItemDialog({
             <input
               type="date"
               value={draft.endDate}
+              min={draft.startDate || undefined}
               onChange={(event) => setDraft({ ...draft, endDate: event.target.value })}
               aria-label="End date"
             />
@@ -282,7 +335,7 @@ export function ItemDialog({
             ) : null}
           </div>
           <div>
-            {editingItem && !isAchievementColumn(state.columns.find((column) => column.id === editingItem.column) ?? { id: "", title: "" }) ? (
+            {editingItem && !isAchievementColumn(state.columns.find((column) => column.id === editingItem.column) ?? { kind: "active" }) ? (
               <button className="secondary-button" type="button" onClick={() => onComplete(editingItem)}>
                 <Check size={16} />
                 Complete
@@ -330,7 +383,7 @@ export function TriageDialog({
       <form className="item-form" onSubmit={submit}>
         <label className="field field-title">
           <span>Title</span>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Triage title" autoFocus />
+          <input value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Triage title" data-dialog-autofocus />
         </label>
         <label className="field">
           <span>Notes</span>
@@ -517,6 +570,7 @@ export function ManageBoardDialog({
   onRenameColumn,
   onDeleteColumn,
   onExport,
+  onPreviewImport,
   onImport,
   onReset,
 }: {
@@ -530,13 +584,19 @@ export function ManageBoardDialog({
   onRenameColumn: (id: string, name: string) => void;
   onDeleteColumn: (id: string) => void;
   onExport: () => void;
-  onImport: (value: unknown) => boolean;
+  onPreviewImport: (value: unknown) => ImportPreview | null;
+  onImport: (value: unknown, mode: "replace" | "merge") => boolean;
   onReset: () => void;
 }) {
   const [laneName, setLaneName] = useState("");
   const [laneIcon, setLaneIcon] = useState<LaneIconName>("sparkles");
   const [columnName, setColumnName] = useState("");
   const [importMessage, setImportMessage] = useState("");
+  const [pendingImport, setPendingImport] = useState<{
+    value: unknown;
+    preview: ImportPreview;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const laneSensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
@@ -566,12 +626,34 @@ export function ManageBoardDialog({
 
   const importFile = async (file?: File) => {
     if (!file) return;
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      setPendingImport(null);
+      setImportMessage("That backup is larger than the 2 MB import limit.");
+      return;
+    }
     try {
       const parsed = JSON.parse(await file.text());
-      setImportMessage(onImport(parsed) ? "Backup imported." : "That file is not a valid Life Lanes backup.");
+      const preview = onPreviewImport(parsed);
+      if (!preview) {
+        setPendingImport(null);
+        setImportMessage("That file is not a valid Life Lanes backup.");
+        return;
+      }
+      setPendingImport({ value: parsed, preview });
+      setImportMessage("");
     } catch {
+      setPendingImport(null);
       setImportMessage("That file could not be read.");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const confirmImport = (mode: "replace" | "merge") => {
+    if (!pendingImport) return;
+    const imported = onImport(pendingImport.value, mode);
+    setImportMessage(imported ? "Backup imported." : "That backup could not be imported.");
+    if (imported) setPendingImport(null);
   };
 
   return (
@@ -653,18 +735,53 @@ export function ManageBoardDialog({
               <p>Demo changes are temporary. Reset to restore the example board.</p>
             ) : (
               <>
-                <p>Your board lives in this browser. Export a copy whenever it matters.</p>
+                <p>Your board is stored only in this browser profile. Export a copy whenever it matters.</p>
                 <div className="backup-actions">
                   <button className="secondary-button" type="button" onClick={onExport}>
                     <Download size={16} />
                     Export JSON
                   </button>
-                  <label className="secondary-button file-button">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     <Upload size={16} />
                     Import JSON
-                    <input type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} />
-                  </label>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    className="sr-only"
+                    type="file"
+                    accept="application/json,.json"
+                    tabIndex={-1}
+                    onChange={(event) => importFile(event.target.files?.[0])}
+                    aria-hidden="true"
+                  />
                 </div>
+                {pendingImport ? (
+                  <div className="import-preview" role="group" aria-label="Import preview">
+                    <strong>Ready to import</strong>
+                    <div>
+                      <span>{pendingImport.preview.summary.items} item{pendingImport.preview.summary.items === 1 ? "" : "s"}</span>
+                      <span>{pendingImport.preview.summary.notes} note{pendingImport.preview.summary.notes === 1 ? "" : "s"}</span>
+                      <span>{pendingImport.preview.summary.lanes} lane{pendingImport.preview.summary.lanes === 1 ? "" : "s"}</span>
+                      <span>{pendingImport.preview.summary.states} state{pendingImport.preview.summary.states === 1 ? "" : "s"}</span>
+                    </div>
+                    <p>Merge adds this backup to your board. Replace keeps a recovery copy of your current board.</p>
+                    <div className="import-preview-actions">
+                      <button className="secondary-button" type="button" onClick={() => setPendingImport(null)}>
+                        Cancel
+                      </button>
+                      <button className="secondary-button" type="button" onClick={() => confirmImport("merge")}>
+                        Merge
+                      </button>
+                      <button className="primary-button" type="button" onClick={() => confirmImport("replace")}>
+                        Replace
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 {importMessage ? <p className="import-message" role="status">{importMessage}</p> : null}
               </>
             )}
@@ -674,6 +791,106 @@ export function ManageBoardDialog({
             </button>
           </div>
         </section>
+      </div>
+    </DialogFrame>
+  );
+}
+
+export function DeleteDestinationDialog({
+  name,
+  itemCount,
+  destinationLabel,
+  destinations,
+  onClose,
+  onConfirm,
+}: {
+  name: string;
+  itemCount: number;
+  destinationLabel: string;
+  destinations: Array<{ id: string; label: string }>;
+  onClose: () => void;
+  onConfirm: (destinationId: string) => void;
+}) {
+  const [destinationId, setDestinationId] = useState(destinations[0]?.id ?? "");
+
+  return (
+    <DialogFrame
+      title={`Delete ${name}?`}
+      subtitle={
+        itemCount
+          ? `${itemCount} item${itemCount === 1 ? "" : "s"} will be moved before this is deleted.`
+          : "This can be undone after deletion."
+      }
+      onClose={onClose}
+    >
+      <div className="confirmation-content">
+        {itemCount ? (
+          <label className="field">
+            <span>{destinationLabel}</span>
+            <select
+              value={destinationId}
+              onChange={(event) => setDestinationId(event.target.value)}
+              data-dialog-autofocus
+            >
+              {destinations.map((destination) => (
+                <option value={destination.id} key={destination.id}>
+                  {destination.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <footer className="dialog-footer">
+          <span />
+          <div>
+            <button className="secondary-button" type="button" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              className="danger-button"
+              type="button"
+              onClick={() => onConfirm(destinationId)}
+              disabled={itemCount > 0 && !destinationId}
+              data-dialog-autofocus={itemCount ? undefined : true}
+            >
+              <Trash2 size={16} />
+              Delete
+            </button>
+          </div>
+        </footer>
+      </div>
+    </DialogFrame>
+  );
+}
+
+export function ConfirmActionDialog({
+  title,
+  message,
+  confirmLabel,
+  onClose,
+  onConfirm,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <DialogFrame title={title} subtitle={message} onClose={onClose}>
+      <div className="confirmation-content">
+        <footer className="dialog-footer">
+          <span />
+          <div>
+            <button className="secondary-button" type="button" onClick={onClose} data-dialog-autofocus>
+              Cancel
+            </button>
+            <button className="danger-button" type="button" onClick={onConfirm}>
+              <RotateCcw size={16} />
+              {confirmLabel}
+            </button>
+          </div>
+        </footer>
       </div>
     </DialogFrame>
   );

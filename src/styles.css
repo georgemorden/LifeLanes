@@ -46,6 +46,7 @@ html {
   min-width: 320px;
   min-height: 100%;
   background: var(--ink-950);
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -151,10 +152,37 @@ textarea:focus-visible {
   padding: 0 18px;
 }
 
+.brand-mark {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  contain: paint;
+}
+
 .brand img {
   display: block;
   width: 42px;
   height: 42px;
+  transform-origin: center;
+  animation: brand-lanes-arrive 520ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  transition:
+    transform 440ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 180ms ease;
+}
+
+.brand-mark[data-view="capture"] img {
+  transform: rotate(90deg);
+}
+
+.brand-mark[data-view="achievements"] img {
+  transform: rotate(-90deg);
+}
+
+.brand:hover .brand-mark img {
+  filter: brightness(1.1);
 }
 
 .brand h1 {
@@ -183,36 +211,50 @@ textarea:focus-visible {
   color: var(--text-muted);
   font-size: 16px;
   font-weight: 600;
+  opacity: 0.68;
+  filter: blur(0);
   transition:
     color 160ms ease,
-    background-color 160ms ease;
+    opacity 220ms ease,
+    filter 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.nav-active-indicator {
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: var(--indicator-width, 0);
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent);
-  opacity: 0;
-  pointer-events: none;
-  transform: translate3d(var(--indicator-x, 0), 0, 0);
-  transition:
-    width 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 120ms ease;
-  will-change: width, transform;
-}
-
-.nav-active-indicator.ready {
+.nav-button:focus-visible {
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
   opacity: 1;
+  filter: blur(0);
+}
+
+.primary-nav:has(.nav-button:focus-visible) .nav-button:not(:focus-visible) {
+  opacity: 0.42;
+  filter: blur(0.65px);
+}
+
+.app-shell:has([data-workspace-panel]:focus-within)
+  .primary-nav
+  .nav-button:not(.active) {
+  opacity: 0.42;
+  filter: blur(0.65px);
 }
 
 .nav-button:hover,
 .nav-button.active {
   color: var(--text);
+  opacity: 1;
+}
+
+.primary-nav:has(.nav-button:focus-visible) .nav-button:not(:focus-visible):hover {
+  opacity: 0.72;
+  filter: blur(0);
+}
+
+.app-shell:has([data-workspace-panel]:focus-within)
+  .primary-nav
+  .nav-button:not(.active):hover {
+  opacity: 0.72;
+  filter: blur(0);
 }
 
 .header-actions {
@@ -379,9 +421,10 @@ textarea:focus-visible {
 .capture-view,
 .achievements-view {
   width: 100%;
-  margin: 0 auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
   padding-top: 18px;
-  view-transition-name: workspace-view;
 }
 
 .board-view {
@@ -389,6 +432,13 @@ textarea:focus-visible {
   height: calc(100dvh - var(--app-header-height) - var(--app-bottom-space));
   min-height: 500px;
   flex-direction: column;
+  outline: none;
+}
+
+.board-empty-state:focus,
+.capture-view:focus,
+.achievements-view:focus {
+  outline: none;
 }
 
 .matrix-scroll {
@@ -496,6 +546,17 @@ textarea:focus-visible {
 .state-heading {
   gap: 10px;
   padding: 0 16px;
+  outline: none;
+  transition:
+    background-color 160ms ease,
+    box-shadow 180ms ease;
+}
+
+.state-heading:focus-visible {
+  background: #1a2020;
+  box-shadow:
+    inset 0 -2px var(--accent),
+    inset 0 0 0 1px rgba(112, 212, 187, 0.16);
 }
 
 .state-heading h2 {
@@ -846,6 +907,19 @@ textarea:focus-visible {
   transform: translateY(-1px);
 }
 
+.note-card:has(.note-open-button:focus-visible) {
+  border-color: rgba(112, 212, 187, 0.65);
+  background: #242b2b;
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.2),
+    0 0 0 2px rgba(112, 212, 187, 0.12);
+  transform: translateY(-1px);
+}
+
+.note-open-button:focus-visible {
+  box-shadow: none;
+}
+
 .note-card:not(.drag-overlay) {
   animation: card-arrive 180ms ease-out backwards;
 }
@@ -1053,6 +1127,13 @@ textarea:focus-visible {
   color: var(--accent);
 }
 
+.cell-add-button:focus-visible {
+  background: var(--ink-800);
+  color: var(--accent-strong);
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
 .matrix-row-contents.is-collapsed .lane-row-heading,
 .matrix-row-contents.is-collapsed .matrix-cell {
   min-height: 52px;
@@ -1106,8 +1187,93 @@ textarea:focus-visible {
 
 .board-footer-actions {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 4px;
+}
+
+.board-search {
+  display: flex;
+  width: 220px;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  color: var(--text-muted);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.board-search:hover,
+.board-search:focus-within {
+  border-color: var(--line);
+  background: var(--ink-900);
+  color: var(--text-soft);
+}
+
+.board-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.board-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.board-search button {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.board-search button:hover {
+  background: var(--ink-750);
+  color: var(--text);
+}
+
+.board-priority-filter select {
+  height: 34px;
+  padding: 0 28px 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.board-priority-filter select:hover,
+.board-priority-filter select:focus {
+  border-color: var(--line);
+  background-color: var(--ink-900);
+  color: var(--text-soft);
+}
+
+.matrix-empty-results {
+  display: flex;
+  min-height: 132px;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .text-button,
@@ -1965,6 +2131,79 @@ textarea:focus-visible {
   display: none;
 }
 
+.import-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-small);
+  background: var(--ink-900);
+}
+
+.import-preview > strong {
+  font-size: 13px;
+}
+
+.import-preview > div:not(.import-preview-actions) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.import-preview > div > span {
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.import-preview p {
+  margin: 0;
+}
+
+.import-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.confirmation-content {
+  padding: 20px 22px 22px;
+}
+
+.confirmation-content .field {
+  margin-bottom: 20px;
+}
+
+.storage-notice {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 7px 8px 7px 13px;
+  border: 1px solid rgba(236, 155, 98, 0.35);
+  border-radius: var(--radius);
+  background: rgba(236, 155, 98, 0.08);
+  color: #eab28b;
+}
+
+.storage-notice p {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.storage-notice .secondary-button {
+  min-height: 34px;
+}
+
 .import-message {
   color: var(--accent) !important;
 }
@@ -2125,23 +2364,16 @@ textarea:focus-visible {
   filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.28));
 }
 
-::view-transition-group(workspace-view) {
-  animation-duration: 280ms;
-  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+.app-shell.view-forward .board-view,
+.app-shell.view-forward .capture-view,
+.app-shell.view-forward .achievements-view {
+  animation: workspace-view-in-forward 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-::view-transition-old(workspace-view) {
-  animation: workspace-view-out 150ms ease both;
-}
-
-::view-transition-new(workspace-view) {
-  animation: workspace-view-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.app-shell:not(.supports-view-transitions) .board-view,
-.app-shell:not(.supports-view-transitions) .capture-view,
-.app-shell:not(.supports-view-transitions) .achievements-view {
-  animation: view-enter 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+.app-shell.view-backward .board-view,
+.app-shell.view-backward .capture-view,
+.app-shell.view-backward .achievements-view {
+  animation: workspace-view-in-backward 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 @keyframes app-enter {
@@ -2150,6 +2382,17 @@ textarea:focus-visible {
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes brand-lanes-arrive {
+  from {
+    opacity: 0.68;
+    transform: rotate(-90deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0);
   }
 }
 
@@ -2164,21 +2407,25 @@ textarea:focus-visible {
   }
 }
 
-@keyframes workspace-view-out {
-  to {
-    opacity: 0;
-    transform: translateY(-3px) scale(0.999);
-  }
-}
-
-@keyframes workspace-view-in {
+@keyframes workspace-view-in-forward {
   from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.998);
+    opacity: 0.88;
+    transform: translate3d(0, 3px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes workspace-view-in-backward {
+  from {
+    opacity: 0.88;
+    transform: translate3d(0, 3px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -2316,6 +2563,7 @@ textarea:focus-visible {
     padding-inline: 4px;
   }
 
+  .brand-mark,
   .brand img {
     width: 36px;
     height: 36px;
@@ -2355,7 +2603,6 @@ textarea:focus-visible {
 
   .capture-view {
     grid-template-columns: 1fr;
-    max-width: 720px;
   }
 
   .capture-composer-section {
@@ -2398,6 +2645,7 @@ textarea:focus-visible {
     gap: 8px;
   }
 
+  .brand-mark,
   .brand img {
     width: 30px;
     height: 30px;
@@ -2443,7 +2691,7 @@ textarea:focus-visible {
   .mobile-state-tabs button {
     display: inline-flex;
     min-width: max-content;
-    min-height: 38px;
+    min-height: 44px;
     flex: 1;
     align-items: center;
     justify-content: center;
@@ -2470,6 +2718,11 @@ textarea:focus-visible {
     border-color: rgba(112, 212, 187, 0.55);
     background: var(--accent-dim);
     color: var(--text);
+  }
+
+  .mobile-state-tabs button:focus-visible {
+    border-color: var(--accent);
+    transform: translateY(-1px);
   }
 
   .mobile-state-tabs span {
@@ -2507,8 +2760,8 @@ textarea:focus-visible {
   }
 
   .lane-header-add {
-    width: 30px;
-    min-height: 30px;
+    width: 36px;
+    min-height: 36px;
     flex: 0 0 auto;
     justify-content: center;
     padding: 0;
@@ -2546,11 +2799,13 @@ textarea:focus-visible {
   }
 
   .lane-drag-handle {
-    width: 20px;
+    width: 32px;
+    height: 44px;
   }
 
   .lane-collapse-button {
-    grid-template-columns: 15px minmax(0, 1fr);
+    min-height: 44px;
+    grid-template-columns: 17px minmax(0, 1fr);
     gap: 4px;
   }
 
@@ -2577,11 +2832,12 @@ textarea:focus-visible {
 
   .note-card {
     min-height: 58px;
-    grid-template-columns: 22px minmax(0, 1fr) auto;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
   }
 
   .note-drag-handle {
-    width: 22px;
+    width: 32px;
+    height: 44px;
   }
 
   .note-open-button {
@@ -2611,7 +2867,7 @@ textarea:focus-visible {
   }
 
   .note-actions {
-    padding-right: 4px;
+    padding-right: 2px;
   }
 
   .note-menu-button {
@@ -2619,8 +2875,8 @@ textarea:focus-visible {
   }
 
   .note-complete-button {
-    width: 28px;
-    height: 28px;
+    width: 40px;
+    height: 40px;
     border-color: rgba(112, 212, 187, 0.28);
     color: var(--accent);
   }
@@ -2641,7 +2897,26 @@ textarea:focus-visible {
   }
 
   .board-footer-actions {
+    width: calc(100% - 42px);
     flex-wrap: wrap;
+  }
+
+  .board-search {
+    order: -1;
+    width: 100%;
+    height: 40px;
+    border-color: var(--line);
+    background: var(--ink-900);
+  }
+
+  .board-priority-filter {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .board-priority-filter select {
+    width: 100%;
+    height: 36px;
   }
 
   .board-footer > .text-button {
@@ -2703,7 +2978,8 @@ textarea:focus-visible {
 
   .dialog-header,
   .item-form,
-  .manage-section {
+  .manage-section,
+  .confirmation-content {
     padding-inline: 16px;
   }
 
@@ -2770,6 +3046,20 @@ textarea:focus-visible {
     max-width: none;
   }
 
+  .storage-notice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 10px;
+  }
+
+  .storage-notice p {
+    flex-basis: calc(100% - 58px);
+  }
+
+  .storage-notice .secondary-button {
+    margin-left: 27px;
+  }
+
   .completion-flight {
     top: 38%;
     height: 220px;
@@ -2802,8 +3092,4 @@ textarea:focus-visible {
     display: none;
   }
 
-  ::view-transition-old(workspace-view),
-  ::view-transition-new(workspace-view) {
-    animation: none;
-  }
 }

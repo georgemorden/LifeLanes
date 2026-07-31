@@ -1,4 +1,4 @@
-const CACHE_NAME = "life-lanes-shell-v3";
+const CACHE_NAME = "life-lanes-shell-v4";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/assets/celebration-goat.png"];
 
 self.addEventListener("install", (event) => {

@@ -66,7 +66,12 @@ export function BrainDumpView({
   };
 
   return (
-    <main className="capture-view">
+    <main
+      id="workspace-capture"
+      className="capture-view"
+      data-workspace-panel="capture"
+      tabIndex={-1}
+    >
       <section className="capture-composer-section">
         <div className="section-heading">
           <div>
@@ -103,6 +108,7 @@ export function BrainDumpView({
               }
             }}
             aria-label="Brain Dump note"
+            data-workspace-entry
             placeholder="What is taking up space in your head?"
             rows={8}
           />
