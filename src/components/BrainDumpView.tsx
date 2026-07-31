@@ -11,6 +11,21 @@ type BrainDumpViewProps = {
   onManageLanes: () => void;
 };
 
+const BRAIN_DUMP_STARTERS = [
+  {
+    label: "Untangle a problem",
+    text: "What's the problem?\n\nWhat have I tried?\n\nWhat would make this feel lighter?",
+  },
+  {
+    label: "Choose a next step",
+    text: "What needs to move?\n\nWhat is the smallest useful next step?",
+  },
+  {
+    label: "Hold an idea",
+    text: "What's the idea?\n\nWhy is it worth keeping?\n\nWhat could I explore next?",
+  },
+] as const;
+
 export function BrainDumpView({
   drafts,
   focusComposer,
@@ -43,6 +58,13 @@ export function BrainDumpView({
     capture();
   };
 
+  const applyStarter = (starter: string) => {
+    setText((current) =>
+      current.trim() ? `${current.trimEnd()}\n\n${starter}` : starter,
+    );
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
   return (
     <main className="capture-view">
       <section className="capture-composer-section">
@@ -51,6 +73,22 @@ export function BrainDumpView({
             <h2>Brain Dump</h2>
           </div>
           <Inbox size={21} aria-hidden="true" />
+        </div>
+
+        <div className="brain-dump-starters" aria-label="Brain Dump starters">
+          <span>Start with</span>
+          <div>
+            {BRAIN_DUMP_STARTERS.map((starter) => (
+              <button
+                className="starter-button"
+                type="button"
+                key={starter.label}
+                onClick={() => applyStarter(starter.text)}
+              >
+                {starter.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <form className="brain-dump-form" onSubmit={submit}>

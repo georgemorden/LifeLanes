@@ -10,7 +10,17 @@ import {
   isLaneColor,
   nowStamp,
 } from "./data";
-import { type BoardColumn, type BoardItem, type BoardState, type DraftNote, type LifeLane, type PresetId } from "./types";
+import { inferLaneIcon, isLaneIcon } from "./lane-icons";
+import {
+  ITEM_PRIORITIES,
+  type BoardColumn,
+  type BoardItem,
+  type BoardState,
+  type DraftNote,
+  type ItemPriority,
+  type LifeLane,
+  type PresetId,
+} from "./types";
 
 export const BOARD_STORAGE_KEY = "life-lanes-two-panel-v1";
 
@@ -48,6 +58,7 @@ function normalizeLane(value: unknown, index: number): LifeLane | null {
     id: hasText(value.id) ? value.id : createId("lane"),
     name: value.name.trim(),
     color: isLaneColor(value.color) ? value.color : (["mint", "sky", "lavender", "peach", "gold", "leaf"] as const)[index % 6],
+    icon: isLaneIcon(value.icon) ? value.icon : inferLaneIcon(value.name),
     createdAt: hasText(value.createdAt) ? value.createdAt : nowStamp(),
   };
 }
@@ -91,6 +102,9 @@ function normalizeItem(value: unknown, fallbackLaneId: string, fallbackColumnId:
     note: typeof value.note === "string" ? value.note : "",
     column,
     laneId: hasText(value.laneId) ? value.laneId : fallbackLaneId,
+    priority: ITEM_PRIORITIES.includes(value.priority as ItemPriority)
+      ? (value.priority as ItemPriority)
+      : "medium",
     startDate: hasText(value.startDate) ? value.startDate : undefined,
     endDate: hasText(value.endDate) ? value.endDate : undefined,
     createdAt: hasText(value.createdAt) ? value.createdAt : stamp,

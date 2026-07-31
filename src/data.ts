@@ -1,15 +1,18 @@
+import { inferLaneIcon } from "./lane-icons";
 import {
   KANBAN_COLUMNS,
   LANE_COLORS,
   type BoardColumn,
   type BoardState,
   type ColumnId,
+  type ItemPriority,
   type LaneColor,
+  type LaneIconName,
   type LifeLane,
   type PresetId,
 } from "./types";
 
-export const DEFAULT_LANE_VERSION = 2;
+export const DEFAULT_LANE_VERSION = 3;
 
 export const DEFAULT_LANES = [
   "Lifestyle",
@@ -40,6 +43,7 @@ const DEMO_ITEMS: Array<{
   note: string;
   column: ColumnId;
   lane: string;
+  priority?: ItemPriority;
   startDate?: string;
   endDate?: string;
 }> = [
@@ -48,6 +52,7 @@ const DEMO_ITEMS: Array<{
     note: "Finish the final learning module, then book the assessment while the material is still fresh.",
     column: "doing",
     lane: "Career",
+    priority: "high",
     startDate: "2026-07-28",
     endDate: "2026-09-30",
   },
@@ -64,6 +69,7 @@ const DEMO_ITEMS: Array<{
     note: "Move a manageable amount across each payday and keep the target visible without obsessing over it.",
     column: "doing",
     lane: "Finance",
+    priority: "high",
     startDate: "2026-07-01",
     endDate: "2026-12-31",
   },
@@ -115,12 +121,14 @@ const DEMO_ITEMS: Array<{
     note: "Find a quiet half hour this week rather than leaving it to a rushed moment.",
     column: "todo",
     lane: "Relationships",
+    priority: "high",
   },
   {
     title: "Renew passport",
     note: "Check the photo requirements and submit the renewal before travel plans become urgent.",
     column: "todo",
     lane: "Life Admin",
+    priority: "high",
     endDate: "2026-09-15",
   },
   {
@@ -140,24 +148,28 @@ const DEMO_ITEMS: Array<{
     note: "Worth revisiting when the next role and learning priorities are clearer.",
     column: "parked",
     lane: "Career",
+    priority: "low",
   },
   {
     title: "Try a new sport",
     note: "Keep the idea without adding another commitment to the current training block.",
     column: "parked",
     lane: "Fitness",
+    priority: "low",
   },
   {
     title: "Marathon idea",
     note: "Save a possible autumn race and revisit after the current routine feels established.",
     column: "parked",
     lane: "Adventure",
+    priority: "low",
   },
   {
     title: "Start a small side project",
     note: "Hold the concept here until the portfolio work is finished.",
     column: "parked",
     lane: "Creative",
+    priority: "low",
   },
   {
     title: "Application story bank",
@@ -229,11 +241,16 @@ export function isLaneColor(value: unknown): value is LaneColor {
   return LANE_COLORS.includes(value as LaneColor);
 }
 
-export function createLifeLane(name: string, index = 0): LifeLane {
+export function createLifeLane(
+  name: string,
+  index = 0,
+  icon: LaneIconName = inferLaneIcon(name),
+): LifeLane {
   return {
     id: createId("lane"),
     name,
     color: LANE_COLORS[index % LANE_COLORS.length],
+    icon,
     createdAt: nowStamp(),
   };
 }
@@ -283,6 +300,7 @@ export function createBoardState(preset: PresetId = "draft"): BoardState {
         note: item.note,
         column: item.column,
         laneId: laneByName.get(item.lane) ?? lanes[0].id,
+        priority: item.priority ?? "medium",
         startDate: item.startDate,
         endDate: item.endDate,
         createdAt: stamp,

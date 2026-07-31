@@ -13,7 +13,7 @@ export type ItemEditorState =
       item: BoardItem;
     };
 
-export type ItemDraft = Pick<BoardItem, "title" | "note" | "column" | "laneId"> & {
+export type ItemDraft = Pick<BoardItem, "title" | "note" | "column" | "laneId" | "priority"> & {
   startDate: string;
   endDate: string;
 };

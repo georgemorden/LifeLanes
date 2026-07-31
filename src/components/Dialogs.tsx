@@ -1,17 +1,89 @@
 import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Check,
   Download,
+  GripVertical,
   Plus,
   RotateCcw,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { activeColumns, isAchievementColumn } from "../board-utils";
 import { firstLine, remainingLines } from "../board-utils";
+import { LANE_ICON_OPTIONS } from "../lane-icons";
 import { type ItemDraft, type ItemEditorState } from "../ui-types";
-import { type BoardColumn, type BoardItem, type BoardState, type DraftNote, type LifeLane } from "../types";
+import {
+  type BoardColumn,
+  type BoardItem,
+  type BoardState,
+  type DraftNote,
+  type ItemPriority,
+  type LaneIconName,
+  type LifeLane,
+} from "../types";
+import { LaneIcon } from "./LaneIcon";
+
+const PRIORITY_OPTIONS: Array<{ id: ItemPriority; label: string }> = [
+  { id: "low", label: "Low" },
+  { id: "medium", label: "Medium" },
+  { id: "high", label: "High" },
+];
+
+function PriorityPicker({
+  value,
+  onChange,
+}: {
+  value: ItemPriority;
+  onChange: (priority: ItemPriority) => void;
+}) {
+  return (
+    <div className="priority-picker" role="group" aria-label="Priority">
+      {PRIORITY_OPTIONS.map((option) => (
+        <button
+          className={value === option.id ? `priority-option ${option.id} active` : `priority-option ${option.id}`}
+          type="button"
+          key={option.id}
+          onClick={() => onChange(option.id)}
+          aria-pressed={value === option.id}
+        >
+          <span className={`priority-meter ${option.id}`} aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function DialogFrame({
   title,
@@ -88,6 +160,7 @@ export function ItemDialog({
         note: editor.item.note,
         column: editor.item.column,
         laneId: editor.item.laneId,
+        priority: editor.item.priority,
         startDate: editor.item.startDate ?? "",
         endDate: editor.item.endDate ?? "",
       };
@@ -98,6 +171,7 @@ export function ItemDialog({
       note: "",
       column: editor.column,
       laneId: editor.laneId,
+      priority: "medium",
       startDate: "",
       endDate: "",
     };
@@ -169,6 +243,14 @@ export function ItemDialog({
           </label>
         </div>
 
+        <div className="field priority-field">
+          <span>Priority</span>
+          <PriorityPicker
+            value={draft.priority}
+            onChange={(priority) => setDraft({ ...draft, priority })}
+          />
+        </div>
+
         <div className="field-grid">
           <label className="field">
             <span>Start date <small>optional</small></span>
@@ -227,7 +309,7 @@ export function TriageDialog({
   columns: BoardColumn[];
   lanes: LifeLane[];
   onClose: () => void;
-  onPlace: (choice: { title: string; note: string; column: string; laneId: string }) => void;
+  onPlace: (choice: { title: string; note: string; column: string; laneId: string; priority: ItemPriority }) => void;
 }) {
   const availableColumns = useMemo(() => activeColumns(columns), [columns]);
   const preferredColumn = availableColumns.find((column) => /to do|next/i.test(column.title)) ?? availableColumns[0];
@@ -235,11 +317,12 @@ export function TriageDialog({
   const [note, setNote] = useState(remainingLines(draft.text));
   const [column, setColumn] = useState(preferredColumn?.id ?? "");
   const [laneId, setLaneId] = useState(lanes[0]?.id ?? "");
+  const [priority, setPriority] = useState<ItemPriority>("medium");
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!title.trim() || !column || !laneId) return;
-    onPlace({ title: title.trim(), note: note.trim(), column, laneId });
+    onPlace({ title: title.trim(), note: note.trim(), column, laneId, priority });
   };
 
   return (
@@ -275,6 +358,10 @@ export function TriageDialog({
             </select>
           </label>
         </div>
+        <div className="field priority-field">
+          <span>Priority</span>
+          <PriorityPicker value={priority} onChange={setPriority} />
+        </div>
         <footer className="dialog-footer">
           <span />
           <div>
@@ -291,14 +378,26 @@ function EditableNameRow({
   id,
   value,
   tone,
+  icon,
   protectedRow = false,
+  nodeRef,
+  style,
+  dragging = false,
+  dragAttributes,
+  dragListeners,
   onRename,
   onDelete,
 }: {
   id: string;
   value: string;
   tone?: string;
+  icon?: LaneIconName;
   protectedRow?: boolean;
+  nodeRef?: (node: HTMLDivElement | null) => void;
+  style?: CSSProperties;
+  dragging?: boolean;
+  dragAttributes?: ButtonHTMLAttributes<HTMLButtonElement>;
+  dragListeners?: ButtonHTMLAttributes<HTMLButtonElement>;
   onRename: (id: string, value: string) => void;
   onDelete: (id: string) => void;
 }) {
@@ -316,8 +415,25 @@ function EditableNameRow({
   };
 
   return (
-    <div className="manage-row">
-      <span className={`manage-row-dot ${tone ?? ""}`} />
+    <div
+      ref={nodeRef}
+      className={`manage-row${dragListeners ? " has-drag-handle" : ""}${dragging ? " is-dragging" : ""}`}
+      style={style}
+    >
+      {dragListeners ? (
+        <button
+          className="manage-drag-handle"
+          type="button"
+          aria-label={`Reorder ${value}`}
+          {...dragAttributes}
+          {...dragListeners}
+        >
+          <GripVertical size={15} />
+        </button>
+      ) : null}
+      <span className={`manage-row-symbol ${tone ?? ""}`}>
+        {icon ? <LaneIcon icon={icon} size={17} /> : <span className="manage-row-dot" />}
+      </span>
       <input
         value={name}
         onChange={(event) => setName(event.target.value)}
@@ -344,12 +460,59 @@ function EditableNameRow({
   );
 }
 
+function SortableManageLaneRow({
+  lane,
+  onRename,
+  onDelete,
+}: {
+  lane: LifeLane;
+  onRename: (id: string, value: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: lane.id,
+    transition: {
+      duration: 240,
+      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+    },
+  });
+
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
+
+  return (
+    <EditableNameRow
+      id={lane.id}
+      value={lane.name}
+      tone={lane.color}
+      icon={lane.icon}
+      nodeRef={setNodeRef}
+      style={style}
+      dragging={isDragging}
+      dragAttributes={attributes as ButtonHTMLAttributes<HTMLButtonElement>}
+      dragListeners={listeners as ButtonHTMLAttributes<HTMLButtonElement>}
+      onRename={onRename}
+      onDelete={onDelete}
+    />
+  );
+}
+
 export function ManageBoardDialog({
   state,
   onClose,
   onAddLane,
   onRenameLane,
   onDeleteLane,
+  onReorderLane,
   onAddColumn,
   onRenameColumn,
   onDeleteColumn,
@@ -359,9 +522,10 @@ export function ManageBoardDialog({
 }: {
   state: BoardState;
   onClose: () => void;
-  onAddLane: (name: string) => void;
+  onAddLane: (name: string, icon: LaneIconName) => void;
   onRenameLane: (id: string, name: string) => void;
   onDeleteLane: (id: string) => void;
+  onReorderLane: (laneId: string, targetLaneId: string) => void;
   onAddColumn: (name: string) => void;
   onRenameColumn: (id: string, name: string) => void;
   onDeleteColumn: (id: string) => void;
@@ -370,14 +534,21 @@ export function ManageBoardDialog({
   onReset: () => void;
 }) {
   const [laneName, setLaneName] = useState("");
+  const [laneIcon, setLaneIcon] = useState<LaneIconName>("sparkles");
   const [columnName, setColumnName] = useState("");
   const [importMessage, setImportMessage] = useState("");
+  const laneSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const addLane = (event: FormEvent) => {
     event.preventDefault();
     if (!laneName.trim()) return;
-    onAddLane(laneName.trim());
+    onAddLane(laneName.trim(), laneIcon);
     setLaneName("");
+    setLaneIcon("sparkles");
   };
 
   const addColumn = (event: FormEvent) => {
@@ -385,6 +556,12 @@ export function ManageBoardDialog({
     if (!columnName.trim()) return;
     onAddColumn(columnName.trim());
     setColumnName("");
+  };
+
+  const reorderLane = (event: DragEndEvent) => {
+    if (event.over && event.active.id !== event.over.id) {
+      onReorderLane(String(event.active.id), String(event.over.id));
+    }
   };
 
   const importFile = async (file?: File) => {
@@ -405,19 +582,43 @@ export function ManageBoardDialog({
             <h3>Life Lanes</h3>
             <span>{state.lanes.length}</span>
           </header>
-          <div className="manage-list">
-            {state.lanes.map((lane) => (
-              <EditableNameRow
-                key={lane.id}
-                id={lane.id}
-                value={lane.name}
-                tone={lane.color}
-                onRename={onRenameLane}
-                onDelete={onDeleteLane}
-              />
-            ))}
-          </div>
-          <form className="manage-add-form" onSubmit={addLane}>
+          <DndContext
+            sensors={laneSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={reorderLane}
+          >
+            <SortableContext
+              items={state.lanes.map((lane) => lane.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="manage-list">
+                {state.lanes.map((lane) => (
+                  <SortableManageLaneRow
+                    key={lane.id}
+                    lane={lane}
+                    onRename={onRenameLane}
+                    onDelete={onDeleteLane}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+          <form className="manage-add-form lane-add-form" onSubmit={addLane}>
+            <div className="lane-icon-picker" role="group" aria-label="Choose a Life Lane icon">
+              {LANE_ICON_OPTIONS.map((option) => (
+                <button
+                  className={laneIcon === option.id ? "lane-icon-choice active" : "lane-icon-choice"}
+                  type="button"
+                  key={option.id}
+                  onClick={() => setLaneIcon(option.id)}
+                  aria-label={option.label}
+                  aria-pressed={laneIcon === option.id}
+                  title={option.label}
+                >
+                  <LaneIcon icon={option.id} size={17} />
+                </button>
+              ))}
+            </div>
             <input value={laneName} onChange={(event) => setLaneName(event.target.value)} placeholder="New Life Lane" aria-label="New Life Lane" />
             <button className="icon-button accent" type="submit" aria-label="Add Life Lane"><Plus size={16} /></button>
           </form>

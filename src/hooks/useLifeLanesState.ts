@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { createBoardState } from "../data";
 import { loadState, normalizeState, saveState } from "../storage";
 import { type BoardState } from "../types";
@@ -10,10 +10,7 @@ export function useLifeLanesState() {
   const [personalState, setPersonalState] = useState<BoardState>(() => loadState());
   const [demoState, setDemoState] = useState<BoardState>(() => createBoardState("demo"));
   const [preset, setPreset] = useState<BoardPreset>("draft");
-
-  useEffect(() => {
-    saveState(personalState);
-  }, [personalState]);
+  const personalStateRef = useRef(personalState);
 
   const state = preset === "demo" ? demoState : personalState;
 
@@ -24,7 +21,10 @@ export function useLifeLanesState() {
         return;
       }
 
-      setPersonalState((current) => updater(current));
+      const nextState = updater(personalStateRef.current);
+      personalStateRef.current = nextState;
+      saveState(nextState);
+      setPersonalState(nextState);
     },
     [preset],
   );
@@ -39,7 +39,10 @@ export function useLifeLanesState() {
   }, []);
 
   const resetPersonal = useCallback(() => {
-    setPersonalState(createBoardState("draft"));
+    const nextState = createBoardState("draft");
+    personalStateRef.current = nextState;
+    saveState(nextState);
+    setPersonalState(nextState);
     setPreset("draft");
   }, []);
 
@@ -51,7 +54,10 @@ export function useLifeLanesState() {
       return false;
     }
 
-    setPersonalState({ ...normalized, preset: "draft" });
+    const nextState: BoardState = { ...normalized, preset: "draft" };
+    personalStateRef.current = nextState;
+    saveState(nextState);
+    setPersonalState(nextState);
     setPreset("draft");
     return true;
   }, []);

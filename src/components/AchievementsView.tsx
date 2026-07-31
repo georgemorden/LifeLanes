@@ -46,7 +46,7 @@ export function AchievementsView({
             <section className={`achievement-group ${lane.color}`} key={lane.id}>
               <header>
                 <span className="lane-icon">
-                  <LaneIcon name={lane.name} />
+                  <LaneIcon name={lane.name} icon={lane.icon} />
                 </span>
                 <h3>{lane.name}</h3>
                 <span>{laneItems.length}</span>

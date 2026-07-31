@@ -8,6 +8,7 @@ import {
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -21,9 +22,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Check,
   ChevronDown,
-  ChevronRight,
   GripVertical,
-  Info,
   MoreHorizontal,
   Plus,
   Rows3,
@@ -31,13 +30,14 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useCallback,
   useMemo,
   useState,
   type ButtonHTMLAttributes,
   type CSSProperties,
 } from "react";
 import { activeColumns } from "../board-utils";
-import { type BoardItem, type BoardState, type LifeLane } from "../types";
+import { type BoardColumn, type BoardItem, type BoardState, type LifeLane } from "../types";
 import { LaneIcon } from "./LaneIcon";
 
 type BoardMatrixProps = {
@@ -46,6 +46,7 @@ type BoardMatrixProps = {
   onEditItem: (item: BoardItem) => void;
   onCompleteItem: (item: BoardItem) => void;
   onMoveItem: (itemId: string, column: string, laneId: string, targetItemId?: string) => void;
+  onMoveLane: (laneId: string, targetLaneId: string) => void;
   onManageBoard: () => void;
 };
 
@@ -62,8 +63,17 @@ type CellDragData = {
   laneId: string;
 };
 
+type LaneDragData = {
+  type: "lane";
+  laneId: string;
+};
+
 function cellId(column: string, laneId: string) {
   return `cell:${column}:${laneId}`;
+}
+
+function laneDragId(laneId: string) {
+  return `lane:${laneId}`;
 }
 
 function SortableNoteCard({
@@ -83,6 +93,10 @@ function SortableNoteCard({
       column: item.column,
       laneId: item.laneId,
     } satisfies ItemDragData,
+    transition: {
+      duration: 220,
+      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+    },
   });
 
   const style: CSSProperties = {
@@ -137,6 +151,7 @@ function NoteCard({
     const end = format(item.endDate);
     return start && end ? `${start} – ${end}` : end ? `By ${end}` : start;
   }, [item.endDate, item.startDate]);
+  const priorityLabel = `${item.priority.slice(0, 1).toUpperCase()}${item.priority.slice(1)}`;
 
   return (
     <div
@@ -156,8 +171,20 @@ function NoteCard({
       </button>
 
       <button className="note-open-button" type="button" onClick={onEdit} aria-label={`Open ${item.title}`}>
-        <strong>{item.title}</strong>
-        {dateLabel ? <span>{dateLabel}</span> : null}
+        <span className="note-title-row">
+          <strong>{item.title}</strong>
+          <span className={`priority-meter ${item.priority}`} title={`${priorityLabel} priority`}>
+            <i aria-hidden="true" />
+            <i aria-hidden="true" />
+            <i aria-hidden="true" />
+            <span className="sr-only">{priorityLabel} priority</span>
+          </span>
+        </span>
+        {dateLabel ? (
+          <span className="note-meta">
+            <span className="date-label">{dateLabel}</span>
+          </span>
+        ) : null}
       </button>
 
       <div className="note-actions">
@@ -203,14 +230,16 @@ function MatrixCell({
     >
       <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
         <div className="matrix-cell-items">
-          {items.map((item) => (
-            <SortableNoteCard
-              key={item.id}
-              item={item}
-              onEdit={() => onEditItem(item)}
-              onComplete={() => onCompleteItem(item)}
-            />
-          ))}
+          <div className="matrix-cell-stack">
+            {items.map((item) => (
+              <SortableNoteCard
+                key={item.id}
+                item={item}
+                onEdit={() => onEditItem(item)}
+                onComplete={() => onCompleteItem(item)}
+              />
+            ))}
+          </div>
         </div>
       </SortableContext>
 
@@ -222,12 +251,116 @@ function MatrixCell({
   );
 }
 
+function SortableLaneRow({
+  lane,
+  columns,
+  activeItems,
+  collapsed,
+  mobileColumn,
+  onToggleLane,
+  onManageBoard,
+  onCreateItem,
+  onEditItem,
+  onCompleteItem,
+}: {
+  lane: LifeLane;
+  columns: BoardColumn[];
+  activeItems: BoardItem[];
+  collapsed: boolean;
+  mobileColumn: string;
+  onToggleLane: () => void;
+  onManageBoard: () => void;
+  onCreateItem: (column: string, laneId: string) => void;
+  onEditItem: (item: BoardItem) => void;
+  onCompleteItem: (item: BoardItem) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: laneDragId(lane.id),
+    data: { type: "lane", laneId: lane.id } satisfies LaneDragData,
+    transition: {
+      duration: 280,
+      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+    },
+  });
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`matrix-row-contents${collapsed ? " is-collapsed" : ""}${isDragging ? " is-lane-dragging" : ""}`}
+      style={style}
+    >
+      <div className={`lane-row-heading ${lane.color}`}>
+        <button
+          className="lane-drag-handle"
+          type="button"
+          aria-label={`Reorder ${lane.name}`}
+          {...(attributes as ButtonHTMLAttributes<HTMLButtonElement>)}
+          {...(listeners as ButtonHTMLAttributes<HTMLButtonElement>)}
+        >
+          <GripVertical size={15} />
+        </button>
+        <button
+          className="lane-collapse-button"
+          type="button"
+          onClick={onToggleLane}
+          aria-expanded={!collapsed}
+        >
+          <ChevronDown className="lane-chevron" size={17} />
+          <span className="lane-icon">
+            <LaneIcon name={lane.name} icon={lane.icon} />
+          </span>
+          <strong>{lane.name}</strong>
+        </button>
+        <button
+          className="lane-menu-button"
+          type="button"
+          onClick={onManageBoard}
+          aria-label={`Manage ${lane.name}`}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+      </div>
+
+      {columns.map((column) => {
+        const items = activeItems.filter(
+          (item) => item.column === column.id && item.laneId === lane.id,
+        );
+        return (
+          <MatrixCell
+            key={`${column.id}-${lane.id}`}
+            column={column.id}
+            lane={lane}
+            items={items}
+            hiddenOnMobile={mobileColumn !== column.id}
+            onCreateItem={() => onCreateItem(column.id, lane.id)}
+            onEditItem={onEditItem}
+            onCompleteItem={onCompleteItem}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export function BoardMatrix({
   state,
   onCreateItem,
   onEditItem,
   onCompleteItem,
   onMoveItem,
+  onMoveLane,
   onManageBoard,
 }: BoardMatrixProps) {
   const columns = useMemo(() => activeColumns(state.columns), [state.columns]);
@@ -257,7 +390,7 @@ export function BoardMatrix({
       return state.lanes.filter((lane) => activeLaneIds.has(lane.id));
     }
 
-    return state.lanes.slice(0, 7);
+    return state.lanes.slice(0, 5);
   }, [activeLaneIds, showAllLanes, state.lanes]);
 
   const sensors = useSensors(
@@ -274,16 +407,50 @@ export function BoardMatrix({
     [activeItems, columns],
   );
 
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
+    const activeType = args.active.data.current?.type;
+    const allowedTypes =
+      activeType === "lane" ? new Set(["lane"]) : new Set(["item", "cell"]);
+
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) =>
+        allowedTypes.has(container.data.current?.type),
+      ),
+    });
+  }, []);
+
   const handleDragStart = (event: DragStartEvent) => {
-    setDraggedItem(state.items.find((item) => item.id === event.active.id) ?? null);
+    const activeData = event.active.data.current as ItemDragData | LaneDragData | undefined;
+    setDraggedItem(
+      activeData?.type === "item"
+        ? state.items.find((item) => item.id === activeData.itemId) ?? null
+        : null,
+    );
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     setDraggedItem(null);
-    const activeData = event.active.data.current as ItemDragData | undefined;
-    const overData = event.over?.data.current as ItemDragData | CellDragData | undefined;
+    const activeData = event.active.data.current as ItemDragData | LaneDragData | undefined;
+    const overData = event.over?.data.current as
+      | ItemDragData
+      | CellDragData
+      | LaneDragData
+      | undefined;
 
-    if (!activeData || activeData.type !== "item" || !overData) {
+    if (activeData?.type === "lane") {
+      if (overData?.type === "lane" && activeData.laneId !== overData.laneId) {
+        onMoveLane(activeData.laneId, overData.laneId);
+      }
+      return;
+    }
+
+    if (
+      !activeData ||
+      activeData.type !== "item" ||
+      !overData ||
+      overData.type === "lane"
+    ) {
       return;
     }
 
@@ -340,7 +507,7 @@ export function BoardMatrix({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={collisionDetection}
         onDragStart={handleDragStart}
         onDragCancel={() => setDraggedItem(null)}
         onDragEnd={handleDragEnd}
@@ -348,8 +515,17 @@ export function BoardMatrix({
         <div className="matrix-scroll">
           <div className="lane-matrix" style={gridStyle}>
             <div className="matrix-header-cell lane-heading">
-              <span>Life Lane</span>
-              <Info size={16} aria-label="Life Lanes organise items by area of life" />
+              <span>Life Lanes</span>
+              <button
+                className="lane-header-add"
+                type="button"
+                onClick={onManageBoard}
+                aria-label="Add Life Lane"
+                title="Add Life Lane"
+              >
+                <Plus size={14} />
+                <span>New</span>
+              </button>
             </div>
 
             {columns.map((column, index) => (
@@ -366,43 +542,26 @@ export function BoardMatrix({
               </div>
             ))}
 
-            {displayedLanes.map((lane) => {
-              const collapsed = collapsedLaneIds.has(lane.id);
-              return (
-                <div className={`matrix-row-contents${collapsed ? " is-collapsed" : ""}`} key={lane.id}>
-                  <div className={`lane-row-heading ${lane.color}`}>
-                    <button className="lane-collapse-button" type="button" onClick={() => toggleLane(lane.id)} aria-expanded={!collapsed}>
-                      {collapsed ? <ChevronRight size={17} /> : <ChevronDown size={17} />}
-                      <span className="lane-icon">
-                        <LaneIcon name={lane.name} />
-                      </span>
-                      <strong>{lane.name}</strong>
-                    </button>
-                    <button className="lane-menu-button" type="button" onClick={onManageBoard} aria-label={`Manage ${lane.name}`}>
-                      <MoreHorizontal size={16} />
-                    </button>
-                  </div>
-
-                  {columns.map((column) => {
-                    const items = activeItems.filter(
-                      (item) => item.column === column.id && item.laneId === lane.id,
-                    );
-                    return (
-                      <MatrixCell
-                        key={`${column.id}-${lane.id}`}
-                        column={column.id}
-                        lane={lane}
-                        items={items}
-                        hiddenOnMobile={mobileColumn !== column.id}
-                        onCreateItem={() => onCreateItem(column.id, lane.id)}
-                        onEditItem={onEditItem}
-                        onCompleteItem={onCompleteItem}
-                      />
-                    );
-                  })}
-                </div>
-              );
-            })}
+            <SortableContext
+              items={displayedLanes.map((lane) => laneDragId(lane.id))}
+              strategy={verticalListSortingStrategy}
+            >
+              {displayedLanes.map((lane) => (
+                <SortableLaneRow
+                  key={lane.id}
+                  lane={lane}
+                  columns={columns}
+                  activeItems={activeItems}
+                  collapsed={collapsedLaneIds.has(lane.id)}
+                  mobileColumn={mobileColumn}
+                  onToggleLane={() => toggleLane(lane.id)}
+                  onManageBoard={onManageBoard}
+                  onCreateItem={onCreateItem}
+                  onEditItem={onEditItem}
+                  onCompleteItem={onCompleteItem}
+                />
+              ))}
+            </SortableContext>
           </div>
         </div>
 
@@ -413,18 +572,19 @@ export function BoardMatrix({
 
       <footer className="board-footer">
         <div className="board-footer-actions">
-          <button className="text-button accent" type="button" onClick={onManageBoard}>
-            <Plus size={17} />
-            Add Life Lane
-          </button>
           <button className="text-button" type="button" onClick={() => setShowAllLanes((value) => !value)}>
             <Rows3 size={16} />
-            {showAllLanes ? "Show active lanes" : `Show all ${state.lanes.length} lanes`}
+            {showAllLanes ? "Show less" : `Show all ${state.lanes.length} lanes`}
           </button>
         </div>
-        <button className="text-button" type="button" onClick={onManageBoard}>
+        <button
+          className="text-button"
+          type="button"
+          onClick={onManageBoard}
+          aria-label="Customize board"
+        >
           <Settings2 size={16} />
-          Customize
+          <span>Customize</span>
         </button>
       </footer>
     </section>

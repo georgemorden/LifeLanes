@@ -1,4 +1,5 @@
-import { Play, Send } from "lucide-react";
+import { Play } from "lucide-react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { type BoardPreset } from "../hooks/useLifeLanesState";
 import { type ViewId } from "../ui-types";
 
@@ -23,6 +24,37 @@ export function AppHeader({
   onChangePreset,
   onStartTour,
 }: AppHeaderProps) {
+  const navRef = useRef<HTMLElement | null>(null);
+  const buttonRefs = useRef<Record<ViewId, HTMLButtonElement | null>>({
+    board: null,
+    capture: null,
+    achievements: null,
+  });
+  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    const activeButton = buttonRefs.current[activeView];
+    if (!nav || !activeButton) return;
+
+    const measure = () => {
+      setIndicator({
+        left: activeButton.offsetLeft + 14,
+        width: Math.max(0, activeButton.offsetWidth - 28),
+      });
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [activeView]);
+
+  const indicatorStyle = {
+    "--indicator-x": `${indicator.left}px`,
+    "--indicator-width": `${indicator.width}px`,
+  } as CSSProperties;
+
   return (
     <header className="app-header">
       <div className="brand">
@@ -30,9 +62,12 @@ export function AppHeader({
         <h1>Life Lanes</h1>
       </div>
 
-      <nav className="primary-nav" aria-label="Workspace">
+      <nav ref={navRef} className="primary-nav" aria-label="Workspace">
         {NAV_ITEMS.map((item) => (
           <button
+            ref={(node) => {
+              buttonRefs.current[item.id] = node;
+            }}
             className={activeView === item.id ? "nav-button active" : "nav-button"}
             type="button"
             key={item.id}
@@ -43,6 +78,11 @@ export function AppHeader({
             {item.label}
           </button>
         ))}
+        <span
+          className={indicator.width ? "nav-active-indicator ready" : "nav-active-indicator"}
+          style={indicatorStyle}
+          aria-hidden="true"
+        />
       </nav>
 
       <div className="header-actions">
@@ -69,16 +109,6 @@ export function AppHeader({
             <option value="demo">Demo</option>
           </select>
         </label>
-
-        <button
-          className="capture-nav-button"
-          type="button"
-          onClick={() => onChangeView("capture")}
-          aria-label="Open Brain Dump"
-        >
-          <Send size={17} />
-          <span>Capture</span>
-        </button>
       </div>
     </header>
   );

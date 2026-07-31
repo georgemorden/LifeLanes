@@ -37,9 +37,15 @@ import {
   type BoardItem,
   type BoardState,
   type DraftNote,
+  type ItemPriority,
+  type LaneIconName,
 } from "./types";
 
 const TOAST_DURATION = 5000;
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => unknown;
+};
 
 function fallbackActiveColumn(state: BoardState) {
   const columns = activeColumns(state.columns);
@@ -100,6 +106,25 @@ export default function App() {
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [celebrationId, setCelebrationId] = useState<string | null>(null);
+  const supportsViewTransitions =
+    typeof (document as ViewTransitionDocument).startViewTransition ===
+    "function";
+
+  const changeView = (nextView: ViewId) => {
+    if (nextView === activeView) return;
+
+    const transitionDocument = document as ViewTransitionDocument;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (transitionDocument.startViewTransition && !reduceMotion) {
+      transitionDocument.startViewTransition(() => setActiveView(nextView));
+      return;
+    }
+
+    setActiveView(nextView);
+  };
 
   const achievementIds = useMemo(
     () => new Set(achievementColumns(state.columns).map((column) => column.id)),
@@ -377,6 +402,7 @@ export default function App() {
     note: string;
     column: string;
     laneId: string;
+    priority: ItemPriority;
   }) => {
     if (!triageDraft) return;
     const stamp = nowStamp();
@@ -396,15 +422,15 @@ export default function App() {
     }));
     setTriageDraft(null);
     showToast("Placed on your board", "View", () => {
-      setActiveView("board");
+      changeView("board");
       setToast(null);
     });
   };
 
-  const addLane = (name: string) => {
+  const addLane = (name: string, icon: LaneIconName) => {
     updateState((current) => ({
       ...current,
-      lanes: [...current.lanes, createLifeLane(name, current.lanes.length)],
+      lanes: [...current.lanes, createLifeLane(name, current.lanes.length, icon)],
     }));
   };
 
@@ -415,6 +441,19 @@ export default function App() {
         lane.id === id ? { ...lane, name } : lane,
       ),
     }));
+  };
+
+  const reorderLane = (laneId: string, targetLaneId: string) => {
+    updateState((current) => {
+      const from = current.lanes.findIndex((lane) => lane.id === laneId);
+      const to = current.lanes.findIndex((lane) => lane.id === targetLaneId);
+      if (from < 0 || to < 0 || from === to) return current;
+
+      const lanes = [...current.lanes];
+      const [movedLane] = lanes.splice(from, 1);
+      lanes.splice(to, 0, movedLane);
+      return { ...current, lanes };
+    });
   };
 
   const deleteLane = (id: string) => {
@@ -522,11 +561,17 @@ export default function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div
+      className={
+        supportsViewTransitions
+          ? "app-shell supports-view-transitions"
+          : "app-shell"
+      }
+    >
       <AppHeader
         activeView={activeView}
         preset={preset}
-        onChangeView={setActiveView}
+        onChangeView={changeView}
         onChangePreset={changePreset}
         onStartTour={startTour}
       />
@@ -546,6 +591,7 @@ export default function App() {
           onEditItem={(item) => setEditor({ mode: "edit", item })}
           onCompleteItem={completeItem}
           onMoveItem={moveItem}
+          onMoveLane={reorderLane}
           onManageBoard={() => setManageOpen(true)}
         />
       ) : null}
@@ -598,6 +644,7 @@ export default function App() {
           onAddLane={addLane}
           onRenameLane={renameLane}
           onDeleteLane={deleteLane}
+          onReorderLane={reorderLane}
           onAddColumn={addColumn}
           onRenameColumn={renameColumn}
           onDeleteColumn={deleteColumn}

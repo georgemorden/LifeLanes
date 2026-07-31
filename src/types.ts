@@ -6,9 +6,30 @@ export const KANBAN_COLUMNS = [
 ] as const;
 
 export const LANE_COLORS = ["mint", "sky", "lavender", "peach", "gold", "leaf"] as const;
+export const LANE_ICONS = [
+  "sparkles",
+  "briefcase",
+  "fitness",
+  "money",
+  "people",
+  "health",
+  "home",
+  "creative",
+  "learning",
+  "travel",
+  "adventure",
+  "ideas",
+  "projects",
+  "music",
+  "food",
+  "nature",
+] as const;
+export const ITEM_PRIORITIES = ["low", "medium", "high"] as const;
 
 export type ColumnId = string;
 export type LaneColor = (typeof LANE_COLORS)[number];
+export type LaneIconName = (typeof LANE_ICONS)[number];
+export type ItemPriority = (typeof ITEM_PRIORITIES)[number];
 export type PresetId = "draft" | "demo" | "custom";
 
 export interface BoardColumn {
@@ -21,6 +42,7 @@ export interface LifeLane {
   id: string;
   name: string;
   color: LaneColor;
+  icon: LaneIconName;
   createdAt: string;
 }
 
@@ -37,6 +59,7 @@ export interface BoardItem {
   note: string;
   column: ColumnId;
   laneId: string;
+  priority: ItemPriority;
   startDate?: string;
   endDate?: string;
   createdAt: string;

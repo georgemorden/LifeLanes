@@ -1,6 +1,5 @@
 import {
   BadgePoundSterling,
-  Bike,
   BookOpen,
   BriefcaseBusiness,
   Dumbbell,
@@ -8,31 +7,47 @@ import {
   House,
   Lightbulb,
   Map,
+  Music2,
   Palette,
   Plane,
+  Salad,
+  Sprout,
   Sparkles,
   Users,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import { inferLaneIcon } from "../lane-icons";
+import { type LaneIconName } from "../types";
 
-const ICONS: Array<[RegExp, LucideIcon]> = [
-  [/(career|work|job|portfolio)/i, BriefcaseBusiness],
-  [/(fitness|training|strength|running)/i, Dumbbell],
-  [/(finance|money|budget)/i, BadgePoundSterling],
-  [/(relationship|family|social|friend)/i, Users],
-  [/(health|wellbeing|recovery)/i, Heart],
-  [/(home|admin|life admin)/i, House],
-  [/(creative|art|music)/i, Palette],
-  [/(learning|upskill|course|certification)/i, BookOpen],
-  [/(travel|holiday)/i, Plane],
-  [/(adventure|race|outdoor)/i, Map],
-  [/(idea|future|random)/i, Lightbulb],
-  [/(project|build)/i, Wrench],
-  [/(lifestyle|habit)/i, Sparkles],
-];
+const ICONS: Record<LaneIconName, LucideIcon> = {
+  sparkles: Sparkles,
+  briefcase: BriefcaseBusiness,
+  fitness: Dumbbell,
+  money: BadgePoundSterling,
+  people: Users,
+  health: Heart,
+  home: House,
+  creative: Palette,
+  learning: BookOpen,
+  travel: Plane,
+  adventure: Map,
+  ideas: Lightbulb,
+  projects: Wrench,
+  music: Music2,
+  food: Salad,
+  nature: Sprout,
+};
 
-export function LaneIcon({ name, size = 18 }: { name: string; size?: number }) {
-  const Icon = ICONS.find(([pattern]) => pattern.test(name))?.[1] ?? Bike;
+export function LaneIcon({
+  name = "",
+  icon,
+  size = 18,
+}: {
+  name?: string;
+  icon?: LaneIconName;
+  size?: number;
+}) {
+  const Icon = ICONS[icon ?? inferLaneIcon(name)] ?? Sparkles;
   return <Icon aria-hidden="true" size={size} strokeWidth={1.8} />;
 }
