@@ -15,7 +15,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowUpRight, Check, GripVertical, NotebookPen, Trash2 } from "lucide-react";
+import { ArrowUpRight, Check, GripVertical, NotebookPen, Plus, Trash2 } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -202,6 +202,7 @@ export function BrainDumpView({
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reorderAnnouncement, setReorderAnnouncement] = useState("");
+  const formRef = useRef<HTMLFormElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimerRef = useRef<number | null>(null);
@@ -220,6 +221,30 @@ export function BrainDumpView({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!active) return;
+
+    const closeComposerOnOutsidePress = (event: PointerEvent) => {
+      if (
+        !(event.target instanceof Node) ||
+        formRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
+      titleRef.current?.blur();
+      noteRef.current?.blur();
+      if (!hasContent && !saving) {
+        setExpanded(false);
+        setActive(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeComposerOnOutsidePress, true);
+    return () =>
+      document.removeEventListener("pointerdown", closeComposerOnOutsidePress, true);
+  }, [active, hasContent, saving]);
 
   const openNoteBody = () => {
     setActive(true);
@@ -311,10 +336,28 @@ export function BrainDumpView({
     >
       <section className="brain-dump-composer">
         <form
+          ref={formRef}
           className={`brain-dump-form${active ? " is-active" : ""}${expanded ? " is-expanded" : ""}${hasContent ? " has-content" : ""}${saving ? " is-saving" : ""}`}
           onSubmit={submit}
           onBlur={collapseEmptyComposer}
         >
+          <button
+            className="mobile-add-note-button"
+            type="button"
+            data-workspace-entry
+            onClick={() => {
+              setActive(true);
+              window.requestAnimationFrame(() => titleRef.current?.focus());
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowUp") return;
+              event.preventDefault();
+              onReturnToNavigation();
+            }}
+          >
+            <Plus size={17} />
+            Add note
+          </button>
           <input
             ref={titleRef}
             className="brain-note-title-input"

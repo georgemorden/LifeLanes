@@ -1632,13 +1632,12 @@ textarea:focus-visible {
 }
 
 .mobile-board-bar,
-.mobile-state-tabs {
+.mobile-state-tabs,
+.mobile-board-actions {
   display: none;
 }
 
 .mobile-quick-add,
-.mobile-board-tools-button,
-.mobile-board-options,
 .mobile-state-empty {
   display: none;
 }
@@ -1776,6 +1775,10 @@ textarea:focus-visible {
   font-size: 15px;
   font-weight: 590;
   line-height: 1.4;
+}
+
+.mobile-add-note-button {
+  display: none;
 }
 
 .brain-note-body-field {
@@ -3466,20 +3469,25 @@ textarea:focus-visible {
   .app-shell {
     --app-header-height: 64px;
     --app-bottom-space: calc(76px + env(safe-area-inset-bottom));
+    display: flex;
+    max-height: 100svh;
+    flex-direction: column;
     height: 100svh;
-    height: 100dvh;
     min-height: 0;
-    padding: 0 10px var(--app-bottom-space);
+    padding: var(--app-header-height) 10px var(--app-bottom-space);
     overflow: hidden;
   }
 
   .app-header {
-    position: sticky;
+    position: fixed;
     z-index: 30;
     top: 0;
+    right: 0;
+    left: 0;
     min-height: var(--app-header-height);
     grid-template-areas: "brand brand";
     grid-template-columns: 1fr;
+    padding-inline: 10px;
     background: var(--ink-950);
     backdrop-filter: none;
   }
@@ -3539,6 +3547,10 @@ textarea:focus-visible {
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.22);
     backdrop-filter: blur(20px);
     overflow: visible;
+    transition:
+      opacity 160ms ease,
+      transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 160ms ease;
   }
 
   .nav-icon {
@@ -3579,9 +3591,10 @@ textarea:focus-visible {
   .board-view,
   .capture-view,
   .achievements-view {
-    height: calc(100dvh - var(--app-header-height) - var(--app-bottom-space));
+    height: auto;
     min-height: 0;
-    max-height: calc(100dvh - var(--app-header-height) - var(--app-bottom-space));
+    max-height: none;
+    flex: 1 1 0;
     padding-top: 10px;
     overflow-y: auto;
     overscroll-behavior-y: contain;
@@ -3616,9 +3629,7 @@ textarea:focus-visible {
   .mobile-board-bar {
     position: relative;
     z-index: 22;
-    display: flex;
-    align-items: stretch;
-    gap: 0;
+    display: block;
     margin-bottom: 8px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -3628,12 +3639,12 @@ textarea:focus-visible {
   .mobile-state-tabs {
     display: flex;
     min-width: 0;
-    flex: 1;
+    width: 100%;
     gap: 2px;
     margin: 0;
     padding: 3px;
     border: 0;
-    border-radius: var(--radius) 0 0 var(--radius);
+    border-radius: var(--radius);
     background: transparent;
     overflow-x: auto;
     scrollbar-width: none;
@@ -3646,9 +3657,10 @@ textarea:focus-visible {
 
   .mobile-state-tabs button {
     display: inline-flex;
-    min-width: 80px;
+    min-width: 0;
+    width: 100%;
     min-height: 44px;
-    flex: 1;
+    flex: 1 1 0;
     align-items: center;
     justify-content: center;
     gap: 7px;
@@ -3673,7 +3685,6 @@ textarea:focus-visible {
   .mobile-state-tabs button.active {
     background: color-mix(in srgb, var(--state-tint), var(--ink-750) 54%);
     color: var(--text);
-    box-shadow: inset 0 -2px var(--state-accent);
   }
 
   .mobile-state-tabs button:focus-visible {
@@ -3688,8 +3699,12 @@ textarea:focus-visible {
   }
 
   .matrix-scroll {
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
     border-radius: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
   .matrix-scroll.is-mobile-empty {
@@ -3914,94 +3929,49 @@ textarea:focus-visible {
   }
 
   .mobile-demo-button {
-    display: inline-flex;
-    min-height: 36px;
+    display: flex;
+    min-height: 40px;
     align-items: center;
-    padding: 0 8px;
+    justify-content: center;
+    padding: 0 6px;
     border: 0;
+    border-left: 1px solid var(--line);
+    border-radius: 0;
     background: transparent;
     color: var(--text-faint);
     font-size: 11px;
     font-weight: 650;
+    white-space: nowrap;
   }
 
   .mobile-demo-button.active,
   .mobile-demo-button:hover,
   .mobile-demo-button:focus-visible {
-    color: var(--text-soft);
+    background: rgba(112, 212, 187, 0.06);
+    color: var(--accent);
   }
 
-  .mobile-board-tools-button {
-    display: inline-grid;
-    width: 44px;
-    height: auto;
-    min-height: 44px;
-    flex: 0 0 44px;
-    place-items: center;
-    padding: 0;
-    border: 0;
-    border-left: 1px solid var(--line);
-    border-radius: 0 var(--radius) var(--radius) 0;
-    background: transparent;
-    color: var(--text-muted);
-    transition:
-      border-color 150ms ease,
-      background-color 150ms ease,
-      color 150ms ease,
-      transform 150ms ease;
+  .mobile-board-actions {
+    position: fixed;
+    z-index: 32;
+    top: 14px;
+    right: max(10px, env(safe-area-inset-right));
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
-  .mobile-board-tools-button:hover,
-  .mobile-board-tools-button:focus-visible,
-  .mobile-board-tools-button[aria-expanded="true"] {
-    border-color: var(--line-strong);
-    background: var(--ink-850);
-    color: var(--text);
-  }
-
-  .mobile-board-tools-button:active {
-    transform: scale(0.96);
-  }
-
-  .mobile-board-options {
-    position: absolute;
-    z-index: 24;
-    top: calc(100% + 6px);
-    right: 0;
-    bottom: auto;
-    display: grid;
-    width: min(320px, calc(100vw - 20px));
-    gap: 5px;
-    padding: 8px;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    background: var(--ink-800);
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
-    animation: board-menu-in 170ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  }
-
-  .mobile-board-options .board-search {
-    order: 0;
-    width: 100%;
-    height: 40px;
-    border-color: var(--line);
+  .mobile-board-actions .mobile-demo-button {
+    border: 1px solid var(--line);
     background: var(--ink-900);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
   }
 
-  .mobile-board-options .text-button {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .mobile-board-options .board-priority-filter,
-  .mobile-board-options .board-priority-filter select {
-    width: 100%;
-  }
-
-  .mobile-board-options .board-priority-filter select {
-    height: 38px;
-    border-color: var(--line);
-    background: var(--ink-900);
+  .mobile-board-actions .mobile-demo-button {
+    min-height: 34px;
+    padding-inline: 8px;
+    border-radius: var(--radius-small);
+    font-size: 10px;
   }
 
   .mobile-state-empty {
@@ -4039,14 +4009,43 @@ textarea:focus-visible {
   .brain-note-title-input {
     height: 48px;
     padding-inline: 13px;
-    font-size: 14px;
+    font-size: 16px;
+  }
+
+  .brain-dump-form:not(.is-active) .brain-note-title-input {
+    display: none;
+  }
+
+  .mobile-add-note-button {
+    display: none;
+  }
+
+  .brain-dump-form:not(.is-active) .mobile-add-note-button {
+    display: inline-flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 13px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 16px;
+    font-weight: 590;
+    text-align: left;
+  }
+
+  .brain-dump-form:not(.is-active) .mobile-add-note-button:focus-visible,
+  .brain-dump-form:not(.is-active) .mobile-add-note-button:active {
+    color: var(--text);
   }
 
   .brain-note-body-input {
     min-height: 78px;
     resize: none;
     padding: 0 13px 11px;
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .brain-dump-form.is-expanded .brain-note-body-field {
@@ -4130,11 +4129,15 @@ textarea:focus-visible {
     padding: 0;
     background: rgba(5, 7, 7, 0.62);
     backdrop-filter: blur(3px);
+    overscroll-behavior: none;
   }
 
   .dialog {
     width: 100%;
-    max-height: min(82dvh, 720px);
+    max-height: min(82svh, 720px);
+    min-width: 0;
+    overflow-x: hidden;
+    overscroll-behavior: none;
     border-right: 0;
     border-bottom: 0;
     border-left: 0;
@@ -4158,6 +4161,47 @@ textarea:focus-visible {
     padding-bottom: 12px;
     background: color-mix(in srgb, var(--ink-850), transparent 4%);
     backdrop-filter: blur(16px);
+  }
+
+  .manage-accordion {
+    min-width: 0;
+    padding: 4px 12px 16px;
+    overflow-x: hidden;
+  }
+
+  .manage-accordion-content {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .manage-accordion-content.is-open {
+    padding-bottom: 14px;
+  }
+
+  .manage-accordion-content .lane-add-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .lane-icon-picker {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 3px;
+    padding: 6px;
+  }
+
+  .lane-icon-choice {
+    height: 30px;
+  }
+
+  .lane-add-form .manage-add-field,
+  .lane-add-form .manage-add-submit {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lane-add-form .manage-add-submit {
+    min-height: 38px;
+    justify-content: center;
   }
 
   .dialog-header::before {
@@ -4196,40 +4240,73 @@ textarea:focus-visible {
   }
 
   .tour-bar {
-    align-items: start;
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 9px;
-    padding: 10px;
+    min-height: 52px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 7px 8px 7px 11px;
   }
 
   .tour-icon {
-    width: 30px;
-    height: 30px;
+    display: none;
   }
 
   .tour-copy {
-    display: block;
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
   }
 
   .tour-copy > span,
-  .tour-copy strong,
-  .tour-copy p {
+  .tour-copy strong {
     display: block;
-    white-space: normal;
+    white-space: nowrap;
   }
 
   .tour-copy strong {
-    margin-top: 2px;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .tour-copy p {
-    margin-top: 3px;
+    display: none;
   }
 
   .tour-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
-    padding-top: 3px;
+    grid-column: auto;
+    gap: 3px;
+    padding: 0;
+  }
+
+  .tour-actions .tour-exit-button,
+  .tour-actions button[aria-label="Previous tour step"] {
+    display: none;
+  }
+
+  .tour-actions .secondary-button,
+  .tour-actions .primary-button {
+    min-height: 36px;
+    padding-inline: 11px;
+    font-size: 12px;
+  }
+
+  .tour-actions .icon-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  .app-shell:has(input:focus, textarea:focus, select:focus) .capture-view,
+  .app-shell:has(input:focus, textarea:focus, select:focus) .dialog {
+    scroll-behavior: auto;
   }
 
   .toast {

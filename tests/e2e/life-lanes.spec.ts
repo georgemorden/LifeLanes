@@ -4,7 +4,8 @@ const isMobilePage = (page: Page) => (page.viewportSize()?.width ?? 1280) <= 720
 
 async function openBoardOptions(page: Page) {
   if (isMobilePage(page)) {
-    await page.getByRole("button", { name: "Open board options" }).click();
+    test.skip(true, "Advanced board actions are intentionally desktop-only on mobile.");
+    return;
   }
 }
 
@@ -16,6 +17,12 @@ async function openBoardSettings(page: Page) {
       .getByRole("menu", { name: "Customize board" })
       .getByRole("menuitem", { name: "Edit Life Lanes" })
       .click();
+  }
+}
+
+async function openNoteComposer(page: Page) {
+  if (isMobilePage(page)) {
+    await page.getByRole("button", { name: "Add note" }).click();
   }
 }
 
@@ -86,14 +93,14 @@ test("loads the main board and tabs", async ({ page }) => {
   if (isMobile) {
     await expect(page.getByText("Nothing in Doing")).toBeVisible();
     await expect(page.getByRole("button", { name: "Add item to Career in Doing" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Open board options" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open demo board" })).toBeVisible();
   } else {
     await expect(page.getByRole("button", { name: "Add to board" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Customize board" })).toBeVisible();
   }
 });
 
-test("opens the demo board from mobile board options", async ({ page }) => {
+test("opens the demo board from the mobile board", async ({ page }) => {
   await page.goto("/");
   const isMobile = (page.viewportSize()?.width ?? 1280) <= 720;
   test.skip(!isMobile, "Desktop no longer shows the first-run prompt row.");
@@ -215,6 +222,7 @@ test("keeps the Brain Dump composer quiet and focused", async ({ page }) => {
   await expect(title).not.toBeFocused();
   await expect(content).toBeHidden();
   await expect(saveNote).toBeDisabled();
+  await openNoteComposer(page);
   await title.fill("A thought worth keeping");
   await expect(title).toHaveAttribute("placeholder", "Title");
   await expect(content).toBeHidden();
@@ -239,6 +247,7 @@ test("captures a brain dump as a note", async ({ page }) => {
     .getByRole("navigation", { name: "Workspace" })
     .getByRole("button", { name: "Open Brain Dump" });
   await brainDumpNav.click();
+  await openNoteComposer(page);
   await page.getByLabel("Note title").fill("Book a quiet money reset");
   await page.getByLabel("Note title").press("Enter");
   await expect(page.getByLabel("Note content")).toBeFocused();
@@ -250,7 +259,11 @@ test("captures a brain dump as a note", async ({ page }) => {
   await expect(page.getByLabel("Note title")).not.toBeFocused();
   await expect(brainDumpNav).toBeFocused();
   await brainDumpNav.press("ArrowDown");
-  await expect(page.getByLabel("Note title")).toBeFocused();
+  await expect(
+    isMobilePage(page)
+      ? page.getByRole("button", { name: "Add note" })
+      : page.getByLabel("Note title"),
+  ).toBeFocused();
   await expect(
     page.getByRole("button", { name: "Organise Book a quiet money reset" }),
   ).toBeVisible();
@@ -259,6 +272,7 @@ test("captures a brain dump as a note", async ({ page }) => {
 test("edits a saved Brain Dump note", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Open Brain Dump" }).click();
+  await openNoteComposer(page);
   await page.getByLabel("Note title").fill("A rough idea");
   await page.getByLabel("Note title").press("Enter");
   await page.getByLabel("Note content").fill("The first version.");
@@ -280,6 +294,7 @@ test("reorders Brain Dump notes with the keyboard and keeps the order", async ({
   await page.getByRole("button", { name: "Open Brain Dump" }).click();
 
   const captureNote = async (title: string) => {
+    await openNoteComposer(page);
     await page.getByLabel("Note title").fill(title);
     await page.getByLabel("Note title").press("Enter");
     await page.getByLabel("Note content").press("Enter");
@@ -351,6 +366,7 @@ test("triages a note into a Life Lane", async ({ page }) => {
     .getByRole("navigation", { name: "Workspace" })
     .getByRole("button", { name: "Open Brain Dump" })
     .click();
+  await openNoteComposer(page);
   await page.getByLabel("Note title").fill("Plan a family lunch");
   await page.getByLabel("Note title").press("Enter");
   await page.getByLabel("Note content").fill("Pick a Sunday and keep it simple.");
@@ -440,6 +456,7 @@ test("keeps personal notes after refresh", async ({ page }) => {
     .getByRole("navigation", { name: "Workspace" })
     .getByRole("button", { name: "Open Brain Dump" })
     .click();
+  await openNoteComposer(page);
   await page.getByLabel("Note title").fill("Keep this after refresh");
   await page.getByLabel("Note title").press("Enter");
   await page.getByRole("main").getByRole("button", { name: "Save note", exact: true }).click();
@@ -491,6 +508,7 @@ test("adds a state directly from the board header", async ({ page }) => {
 test("keeps Personal and Demo lane preferences separate", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Open Brain Dump" }).click();
+  await openNoteComposer(page);
   await page.getByLabel("Note title").fill("Keep my board controls visible");
   await page.getByLabel("Note title").press("Enter");
   await page.getByRole("main").getByRole("button", { name: "Save note", exact: true }).click();
@@ -592,6 +610,7 @@ test("warns when browser storage cannot save", async ({ page }) => {
     };
   });
   await page.getByRole("button", { name: "Open Brain Dump" }).click();
+  await openNoteComposer(page);
   await page.getByLabel("Note title").fill("Keep this visible in memory");
   await page.getByLabel("Note title").press("Enter");
   await page.getByRole("main").getByRole("button", { name: "Save note", exact: true }).click();
@@ -646,6 +665,33 @@ test("uses accessible state tabs on mobile", async ({ page }) => {
   await expect(doing).toHaveAttribute("aria-selected", "true");
   await todo.click();
   await expect(todo).toHaveAttribute("aria-selected", "true");
+});
+
+test("keeps mobile state tabs evenly spaced below the Demo control", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1280) > 720, "Mobile-only layout");
+  await page.goto("/");
+
+  const tabs = page.getByRole("tab");
+  const tabBoxes = await tabs.evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width };
+    }),
+  );
+  const widths = tabBoxes.map(({ width }) => width);
+  expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(2);
+
+  const activeTab = page.locator(".mobile-state-tabs button.active");
+  await expect(activeTab).toHaveCSS("box-shadow", "none");
+
+  const demo = await page.getByRole("button", { name: "Open demo board" }).boundingBox();
+  const actions = await page.locator(".mobile-board-actions").boundingBox();
+  expect(demo).not.toBeNull();
+  expect(actions).not.toBeNull();
+  expect(demo!.y).toBeLessThan(tabBoxes[0].top);
+  expect(Math.abs(actions!.y - demo!.y)).toBeLessThanOrEqual(2);
+  expect(demo!.width).toBeLessThanOrEqual(100);
+  await expect(page.getByRole("button", { name: "Open board options" })).toHaveCount(0);
 });
 
 test("moves through populated states and cards with arrow keys", async ({ page }) => {
@@ -746,7 +792,9 @@ test("moves between workspace views before entering their content", async ({ pag
     .toBe("forward");
 
   await brainDumpNav.press("ArrowDown");
-  const composer = page.getByLabel("Note title");
+  const composer = isMobilePage(page)
+    ? page.getByRole("button", { name: "Add note" })
+    : page.getByLabel("Note title");
   await expect(composer).toBeFocused();
   await expect(boardNav).toHaveCSS("filter", "none");
   await composer.press("ArrowUp");
@@ -951,9 +999,6 @@ test("uses a focused app frame and full-width lanes on mobile", async ({ page })
 
   const navigation = page.getByRole("navigation", { name: "Workspace" });
   await expect(navigation).toHaveCSS("position", "fixed");
-  await openBoardOptions(page);
-  await expect(page.getByRole("button", { name: "Add item to Doing" })).toBeVisible();
-  await page.getByRole("button", { name: "Close board options" }).click();
 
   const firstRow = page.locator(".matrix-row-contents").first();
   const laneHeading = firstRow.locator(".lane-row-heading");
@@ -1046,6 +1091,64 @@ test("keeps short mobile viewports inside the app frame", async ({ page }) => {
   expect(captureFrame.navigationBottom).toBeLessThanOrEqual(captureFrame.viewport + 1);
 });
 
+test("keeps the mobile demo compact and inside the app frame", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1280) > 720, "Mobile viewport only");
+  await page.setViewportSize({ width: 390, height: 620 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open demo board" }).click();
+
+  const layout = await page.evaluate(() => {
+    const board = document.querySelector(".board-view")?.getBoundingClientRect();
+    const navigation = document.querySelector(".primary-nav")?.getBoundingClientRect();
+    const tour = document.querySelector(".tour-bar")?.getBoundingClientRect();
+    const matrix = document.querySelector(".matrix-scroll");
+    return {
+      viewportHeight: window.innerHeight,
+      documentHeight: document.documentElement.scrollHeight,
+      boardBottom: board?.bottom ?? Infinity,
+      navigationTop: navigation?.top ?? -Infinity,
+      tourHeight: tour?.height ?? Infinity,
+      matrixOverflowY: matrix ? getComputedStyle(matrix).overflowY : "",
+    };
+  });
+
+  expect(layout.documentHeight).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.boardBottom).toBeLessThanOrEqual(layout.navigationTop + 1);
+  expect(layout.tourHeight).toBeLessThanOrEqual(54);
+  expect(layout.matrixOverflowY).toBe("auto");
+  await expect(page.getByRole("button", { name: "Career", expanded: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Relationships" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Exit demo" }).last()).toBeVisible();
+});
+
+test("keeps mobile note entry stable when the viewport contracts", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1280) > 720, "Mobile keyboard layout only");
+  await page.setViewportSize({ width: 390, height: 620 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open Brain Dump" }).click();
+  await page.getByRole("button", { name: "Add note" }).click();
+
+  const title = page.getByRole("textbox", { name: "Note title" });
+  await page.setViewportSize({ width: 390, height: 430 });
+
+  await expect(title).toBeFocused();
+  await expect(title).toHaveCSS("font-size", "16px");
+  await expect(page.locator(".primary-nav")).toHaveCSS("visibility", "visible");
+  await expect(page.locator(".app-header")).toHaveCSS("position", "fixed");
+
+  const layout = await page.evaluate(() => ({
+    viewportHeight: window.innerHeight,
+    documentHeight: document.documentElement.scrollHeight,
+    shellBottom: document.querySelector(".app-shell")?.getBoundingClientRect().bottom,
+    composerBottom: document
+      .querySelector(".brain-dump-composer")
+      ?.getBoundingClientRect().bottom,
+  }));
+  expect(layout.documentHeight).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.shellBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.composerBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
+});
+
 test("keeps mobile board settings dismissible", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1280) > 720, "Mobile sheet only");
   await page.setViewportSize({ width: 390, height: 620 });
@@ -1093,6 +1196,7 @@ test("syncs personal changes across open tabs", async ({ context, page }) => {
   await secondPage.goto("/");
 
   await page.getByRole("button", { name: "Open Brain Dump" }).click();
+  await openNoteComposer(page);
   await page.getByLabel("Note title").fill("Visible in both tabs");
   await page.getByLabel("Note title").press("Enter");
   await page.getByRole("main").getByRole("button", { name: "Save note", exact: true }).click();

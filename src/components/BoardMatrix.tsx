@@ -42,6 +42,7 @@ import {
   type ButtonHTMLAttributes,
   type CSSProperties,
 } from "react";
+import { createPortal } from "react-dom";
 import { activeColumns, dateRangeLabel } from "../board-utils";
 import { CORE_DEFAULT_LANES } from "../data";
 import { loadBoardPreferences, saveBoardPreferences } from "../ui-preferences";
@@ -576,11 +577,9 @@ export function BoardMatrix({
   const [isMobileLayout, setIsMobileLayout] = useState(
     () => window.matchMedia("(max-width: 720px)").matches,
   );
-  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [customizeMenuOpen, setCustomizeMenuOpen] = useState(false);
   const [draggedItem, setDraggedItem] = useState<BoardItem | null>(null);
   const boardRef = useRef<HTMLElement | null>(null);
-  const mobileToolsRef = useRef<HTMLDivElement | null>(null);
   const pendingFocusRef = useRef<BoardFocusTarget | null>(null);
   const lastBoardColumnRef = useRef(columns[0]?.id ?? "");
 
@@ -637,24 +636,6 @@ export function BoardMatrix({
     }
   }, [columns, mobileColumn]);
 
-  useLayoutEffect(() => {
-    setMobileToolsOpen(false);
-  }, [mobileColumn, state.preset]);
-
-  useEffect(() => {
-    if (!mobileToolsOpen) return;
-    const closeOnOutsidePress = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        !mobileToolsRef.current?.contains(event.target)
-      ) {
-        setMobileToolsOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePress);
-    return () => document.removeEventListener("pointerdown", closeOnOutsidePress);
-  }, [mobileToolsOpen]);
-
   useEffect(() => {
     if (!focusOnMount) return;
     lastBoardColumnRef.current = window.matchMedia("(max-width: 720px)").matches
@@ -700,7 +681,12 @@ export function BoardMatrix({
   const displayedLanes = useMemo(() => {
     const coreLaneNames = new Set(CORE_DEFAULT_LANES.map((name) => name.toLowerCase()));
     if (demoOverview) {
-      return state.lanes.filter((lane) => coreLaneNames.has(lane.name.toLowerCase()));
+      const demoLanes = state.lanes.filter((lane) =>
+        coreLaneNames.has(lane.name.toLowerCase()),
+      );
+      return isMobileLayout
+        ? demoLanes.filter((lane) => mobileActiveLaneIds.has(lane.id))
+        : demoLanes;
     }
     if (isMobileLayout) {
       if (showAllLanes && !hasFilters) return state.lanes;
@@ -1213,7 +1199,7 @@ export function BoardMatrix({
         down to enter a state, up and down to move through its items, and Escape
         to return to the state heading.
       </p>
-      <div className="mobile-board-bar" ref={mobileToolsRef}>
+      <div className="mobile-board-bar">
         <div className="mobile-state-tabs" role="tablist" aria-label="Choose state">
           {columns.map((column, index) => (
             <button
@@ -1240,97 +1226,23 @@ export function BoardMatrix({
             </button>
           ))}
         </div>
-        <button
-          className={state.preset === "demo" ? "mobile-demo-button active" : "mobile-demo-button"}
-          type="button"
-          onClick={() => onChangePreset(state.preset === "demo" ? "draft" : "demo")}
-          aria-label={state.preset === "demo" ? "Exit demo" : "Open demo board"}
-          aria-pressed={state.preset === "demo"}
-        >
-          {state.preset === "demo" ? "Exit demo" : "Demo"}
-        </button>
-        <button
-          className="mobile-board-tools-button"
-          type="button"
-          onClick={() => setMobileToolsOpen((open) => !open)}
-          aria-label={mobileToolsOpen ? "Close board options" : "Open board options"}
-          aria-expanded={mobileToolsOpen}
-          aria-controls="mobile-board-options"
-        >
-          <MoreHorizontal size={19} />
-        </button>
-        {isMobileLayout && mobileToolsOpen ? (
-          <div id="mobile-board-options" className="mobile-board-options">
-            {mobileDefaultLane ? (
-              <button
-                className="text-button accent"
-                type="button"
-                onClick={() => {
-                  setMobileToolsOpen(false);
-                  onCreateItem(mobileColumn, mobileDefaultLane.id);
-                }}
-                aria-label={`Add item to ${mobileColumnTitle}`}
-                data-board-nav="add"
-                data-board-column={mobileColumn}
-                data-board-lane={mobileDefaultLane.id}
-              >
-                <Plus size={16} />
-                Add item
-              </button>
-            ) : null}
-            <label className="board-search">
-              <Search size={15} aria-hidden="true" />
-              <span className="sr-only">Search items</span>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search items"
-              />
-              {searchQuery ? (
-                <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search">
-                  <X size={14} />
-                </button>
-              ) : null}
-            </label>
-            {!hasFilters && (hiddenLaneCount > 0 || showAllLanes) ? (
-              <button
-                className="text-button"
-                type="button"
-                onClick={toggleLaneOverview}
-              >
-                <Rows3 size={16} />
-                {showAllLanes ? "Focus on active lanes" : "Show all lanes"}
-              </button>
-            ) : null}
-            <label className="board-priority-filter">
-              <span className="sr-only">Filter by priority</span>
-              <select
-                value={priorityFilter}
-                onChange={(event) => setPriorityFilter(event.target.value as ItemPriority | "all")}
-                aria-label="Filter by priority"
-              >
-                <option value="all">All priorities</option>
-                <option value="high">High priority</option>
-                <option value="medium">Medium priority</option>
-                <option value="low">Low priority</option>
-              </select>
-            </label>
-            <button
-              className="text-button"
-              type="button"
-              onClick={() => {
-                setMobileToolsOpen(false);
-                onManageBoard();
-              }}
-              aria-label="Customize board"
-            >
-              <Settings2 size={16} />
-              Board settings
-            </button>
-          </div>
-        ) : null}
       </div>
+      {isMobileLayout
+        ? createPortal(
+            <div className="mobile-board-actions">
+              <button
+                className={state.preset === "demo" ? "mobile-demo-button active" : "mobile-demo-button"}
+                type="button"
+                onClick={() => onChangePreset(state.preset === "demo" ? "draft" : "demo")}
+                aria-label={state.preset === "demo" ? "Exit demo" : "Open demo board"}
+                aria-pressed={state.preset === "demo"}
+              >
+                {state.preset === "demo" ? "Exit demo" : "Demo"}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
 
       <DndContext
         sensors={sensors}
