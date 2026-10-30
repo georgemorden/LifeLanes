@@ -38,7 +38,9 @@ export function useLifeLanesState() {
 
   const persistState = useCallback((nextState: BoardState) => {
     const result = saveState(nextState);
-    setPersistenceIssue(result.ok ? null : result.issue);
+    setPersistenceIssue((current) => result.ok
+      ? (current?.kind === "load" && current.recoveryData ? current : null)
+      : result.issue);
     return result.ok;
   }, []);
 
@@ -171,6 +173,7 @@ export function useLifeLanesState() {
         mode === "merge"
           ? mergeStates(personalStateRef.current, preview.state)
           : preview.state;
+      if (!nextState) return false;
       replacePersonalState(nextState);
       return true;
     },

@@ -2,15 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const isMobilePage = (page: Page) => (page.viewportSize()?.width ?? 1280) <= 720;
 
-async function openBoardOptions(page: Page) {
-  if (isMobilePage(page)) {
-    test.skip(true, "Advanced board actions are intentionally desktop-only on mobile.");
-    return;
-  }
-}
-
 async function openBoardSettings(page: Page) {
-  await openBoardOptions(page);
   await page.getByRole("button", { name: "Customize board" }).click();
   if (!isMobilePage(page)) {
     await page
@@ -127,9 +119,49 @@ test("introduces the demo and returns to the personal board", async ({ page }) =
   await expect(
     page.getByRole("button", { name: "Open My Life Lanes", exact: true }),
   ).toBeVisible();
-  for (let step = 1; step < 4; step += 1) {
-    await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.locator(".tour-copy p")).toHaveText("Click an item to update or move it.");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.locator(".tour-copy strong")).toHaveText("Expand your lanes");
+  await expect(page.getByText("Demo 3/5", { exact: true })).toBeVisible();
+  await expect(page.locator(isMobilePage(page) ? ".tour-mobile-description" : ".tour-copy p")).toBeVisible();
+  await expect(page.locator(".matrix-row-contents")).toHaveCount(13);
+  const createMenu = page.getByRole("menu", { name: "Add to board", exact: true });
+  await expect(createMenu).toBeVisible();
+  if (isMobilePage(page)) {
+    const menuBounds = await createMenu.boundingBox();
+    const guideBounds = await page.locator(".tour-bar").boundingBox();
+    expect(menuBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(menuBounds!.x + menuBounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    expect(menuBounds!.y).toBeGreaterThanOrEqual(guideBounds!.y + guideBounds!.height);
   }
+  const createLane = createMenu.getByRole("menuitem", { name: "Life Lane", exact: true });
+  await expect(createLane).toBeFocused();
+  await createLane.press("Escape");
+  await expect(createMenu).toHaveCount(0);
+  if (isMobilePage(page)) {
+    await page.getByRole("button", { name: "Add a Life Lane", exact: true }).click();
+  } else {
+    await page.getByRole("button", { name: "Add to board", exact: true }).click();
+  }
+  await createLane.click();
+  const dialog = page.getByRole("dialog", { name: "Customize Life Lanes" });
+  await dialog.getByLabel("Life Lane name", { exact: true }).fill("Gardening");
+  await dialog.getByRole("button", { name: "Add lane", exact: true }).click();
+  await dialog.getByRole("button", { name: "Close Customize Life Lanes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Gardening", exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.locator(".tour-copy strong")).toHaveText("Brain Dump");
+  if (!isMobilePage(page)) {
+    await page.getByRole("button", { name: "Previous tour step", exact: true }).click();
+    await expect(createMenu).toBeVisible();
+    await expect(page.locator(".matrix-row-contents")).toHaveCount(14);
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(createMenu).toHaveCount(0);
+    await expect(page.locator(".tour-copy strong")).toHaveText("Brain Dump");
+  }
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.locator(".tour-copy strong")).toHaveText("Achievements");
 
   await page.getByRole("button", { name: "Back to my board" }).click();
   await expect(page.getByRole("button", { name: "Open demo board" })).toHaveAttribute(
@@ -137,6 +169,7 @@ test("introduces the demo and returns to the personal board", async ({ page }) =
     "false",
   );
   await expect(page.getByRole("button", { name: "Open My Life Lanes" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Gardening", exact: true })).toHaveCount(0);
 });
 
 test("reorders Life Lanes from the board and keeps the order", async ({ page }) => {
@@ -231,7 +264,9 @@ test("keeps the Brain Dump composer quiet and focused", async ({ page }) => {
   await expect(content).toBeFocused();
   await content.fill("A little more context.");
   await expect(content).toHaveValue("A little more context.");
-  await content.press("End");
+  await content.evaluate((element: HTMLTextAreaElement) => {
+    element.setSelectionRange(element.value.length, element.value.length);
+  });
   await content.press("Shift+Enter");
   await expect(content).toHaveValue("A little more context.\n");
   await expect(saveNote).toBeEnabled();
@@ -506,6 +541,7 @@ test("adds a state directly from the board header", async ({ page }) => {
 });
 
 test("keeps Personal and Demo lane preferences separate", async ({ page }) => {
+  test.skip(isMobilePage(page), "Lane visibility controls are in the desktop footer.");
   await page.goto("/");
   await page.getByRole("button", { name: "Open Brain Dump" }).click();
   await openNoteComposer(page);
@@ -516,11 +552,10 @@ test("keeps Personal and Demo lane preferences separate", async ({ page }) => {
 
   await page.getByRole("button", { name: "Open demo board" }).click();
 
-  await openBoardOptions(page);
-
-  const showAll = page.getByRole("button", { name: "Show all lanes" });
-  await showAll.click();
-  await expect(page.getByRole("button", { name: "Focus on active lanes" })).toBeVisible();
+  await expect(page.locator(".matrix-row-contents")).toHaveCount(5);
+  await page.getByRole("button", { name: "Show all lanes" }).click();
+  await expect(page.getByRole("button", { name: "Show main lanes" })).toBeVisible();
+  await expect(page.locator(".matrix-row-contents")).toHaveCount(13);
 
   await page
     .locator(
@@ -529,12 +564,11 @@ test("keeps Personal and Demo lane preferences separate", async ({ page }) => {
         : 'button.board-demo-button[aria-label="Exit demo"]',
     )
     .click();
-  await openBoardOptions(page);
   await expect(page.getByRole("button", { name: "Show all lanes" })).toBeVisible();
 
   await page.getByRole("button", { name: "Open demo board" }).click();
-  await openBoardOptions(page);
-  await expect(page.getByRole("button", { name: "Focus on active lanes" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show all lanes" })).toBeVisible();
+  await expect(page.locator(".matrix-row-contents")).toHaveCount(5);
 });
 
 test("previews and safely normalizes an imported backup", async ({ page }) => {
@@ -645,9 +679,9 @@ test("offers a recovery download for corrupted saved data", async ({ page }) => 
 });
 
 test("filters the board without changing its structure", async ({ page }) => {
+  test.skip(isMobilePage(page), "Search and priority filters are in the desktop footer.");
   await page.goto("/");
   await page.getByRole("button", { name: "Open demo board" }).click();
-  await openBoardOptions(page);
   await page.getByPlaceholder("Search items").fill("Build emergency fund");
 
   await expect(page.getByRole("button", { name: "Open Build emergency fund" })).toBeVisible();
@@ -700,8 +734,8 @@ test("moves through populated states and cards with arrow keys", async ({ page }
   const isMobile = (page.viewportSize()?.width ?? 1280) <= 720;
 
   if (isMobile) {
-    const doingTab = page.getByRole("tab", { name: "Doing 3" });
-    const todoTab = page.getByRole("tab", { name: "To Do 5" });
+    const doingTab = page.getByRole("tab", { name: "Doing 5" });
+    const todoTab = page.getByRole("tab", { name: "To Do 7" });
     await doingTab.focus();
     await doingTab.press("ArrowRight");
     await expect(todoTab).toBeFocused();
@@ -709,22 +743,20 @@ test("moves through populated states and cards with arrow keys", async ({ page }
     await expect(todoTab).toHaveCSS("animation-name", "keyboard-control-focus");
     await todoTab.press("ArrowDown");
   } else {
-    const doingHeader = page.getByRole("group", { name: "Doing state, 3 items" });
-    const todoHeader = page.getByRole("group", { name: "To Do state, 5 items" });
+    const doingHeader = page.getByRole("group", { name: "Doing state, 5 items" });
+    const todoHeader = page.getByRole("group", { name: "To Do state, 7 items" });
     await doingHeader.focus();
     await doingHeader.press("ArrowRight");
     await expect(todoHeader).toBeFocused();
-    await expect(todoHeader).toHaveCSS("animation-name", "keyboard-slot-focus");
+    await expect(todoHeader).toHaveCSS("color", "rgb(244, 246, 245)");
     await todoHeader.press("ArrowDown");
   }
 
   const firstTodoItem = page.getByRole("button", { name: "Open Update CV" });
   const secondTodoItem = page.getByRole("button", { name: "Open Book a health check" });
   await expect(firstTodoItem).toBeFocused();
-  await expect(page.locator(".note-card").filter({ has: firstTodoItem })).toHaveCSS(
-    "animation-name",
-    "keyboard-card-focus",
-  );
+  await expect(firstTodoItem).toHaveCSS("color", "rgb(244, 246, 245)");
+  await expect(firstTodoItem).toHaveCSS("outline-style", "none");
   await firstTodoItem.press("ArrowDown");
   await expect(secondTodoItem).toBeFocused();
   await secondTodoItem.press("ArrowLeft");
@@ -733,9 +765,9 @@ test("moves through populated states and cards with arrow keys", async ({ page }
   await expect(matchingDoingItem).toBeFocused();
   await matchingDoingItem.press("Escape");
   if (isMobile) {
-    await expect(page.getByRole("tab", { name: "Doing 3" })).toBeFocused();
+    await expect(page.getByRole("tab", { name: "Doing 5" })).toBeFocused();
   } else {
-    await expect(page.getByRole("group", { name: "Doing state, 3 items" })).toBeFocused();
+    await expect(page.getByRole("group", { name: "Doing state, 5 items" })).toBeFocused();
   }
 });
 
@@ -773,7 +805,7 @@ test("drags a card into another state with the pointer", async ({ page }) => {
   await expect(
     targetCell.getByRole("button", { name: "Open Update CV" }),
   ).toBeVisible();
-  await expect(page.getByRole("group", { name: "Doing state, 4 items" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Doing state, 6 items" })).toBeVisible();
 });
 
 test("moves between workspace views before entering their content", async ({ page }) => {
@@ -830,7 +862,7 @@ test("moves between workspace views before entering their content", async ({ pag
   await expect(boardNav).toBeFocused();
 
   await page.getByRole("button", { name: "Open demo board" }).click();
-  await openBoardOptions(page);
+  if (isMobilePage(page)) return;
   const search = page.getByPlaceholder("Search items");
   await search.focus();
   await search.press("ArrowLeft");
@@ -881,7 +913,7 @@ test("respects reduced motion without removing feedback", async ({ page }) => {
   expect(animationDuration).toBeLessThan(0.001);
 
   if ((page.viewportSize()?.width ?? 1280) <= 720) {
-    await page.getByRole("tab", { name: "Doing 3" }).click();
+    await page.getByRole("tab", { name: "Doing 5" }).click();
   }
   await page
     .getByRole("button", { name: "Complete Finish portfolio case study" })
@@ -1091,7 +1123,7 @@ test("keeps short mobile viewports inside the app frame", async ({ page }) => {
   expect(captureFrame.navigationBottom).toBeLessThanOrEqual(captureFrame.viewport + 1);
 });
 
-test("keeps the mobile demo compact and inside the app frame", async ({ page }) => {
+test("keeps the five-lane mobile demo inside the app frame", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1280) > 720, "Mobile viewport only");
   await page.setViewportSize({ width: 390, height: 620 });
   await page.goto("/");
@@ -1117,7 +1149,7 @@ test("keeps the mobile demo compact and inside the app frame", async ({ page }) 
   expect(layout.tourHeight).toBeLessThanOrEqual(54);
   expect(layout.matrixOverflowY).toBe("auto");
   await expect(page.getByRole("button", { name: "Career", expanded: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Relationships" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Relationships", exact: true })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("button", { name: "Exit demo" }).last()).toBeVisible();
 });
 

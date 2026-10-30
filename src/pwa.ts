@@ -6,7 +6,9 @@ export function registerAppServiceWorker() {
   if (import.meta.env.DEV) {
     navigator.serviceWorker
       .getRegistrations()
-      .then((registrations) => registrations.forEach((registration) => registration.unregister()))
+      .then((registrations) => registrations
+        .filter((registration) => registration.active?.scriptURL === new URL(`${import.meta.env.BASE_URL}sw.js`, location.href).href)
+        .forEach((registration) => registration.unregister()))
       .catch(() => {
         // Development should never depend on the offline shell.
       });

@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Download, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { TOUR_STEPS } from "../tour";
 import { type ToastMessage } from "../ui-types";
@@ -92,15 +92,11 @@ export function TourBar({
 }) {
   const current = TOUR_STEPS[step];
   return (
-    <aside className="tour-bar" aria-live="polite">
-      <span className="tour-icon"><Sparkles size={17} /></span>
+    <aside className={`tour-bar${current.showOnMobile ? " has-description" : ""}`} aria-live="polite">
       <div className="tour-copy">
         <span>Demo {step + 1}/{TOUR_STEPS.length}</span>
         <strong>{current.title}</strong>
         <p>{current.body}</p>
-      </div>
-      <div className="tour-progress" aria-hidden="true">
-        {TOUR_STEPS.map((_, index) => <span className={index === step ? "active" : ""} key={index} />)}
       </div>
       <div className="tour-actions">
         <button className="text-button tour-exit-button" type="button" onClick={onExitDemo}>
@@ -110,12 +106,12 @@ export function TourBar({
           <ChevronLeft size={17} />
         </button>
         {step < TOUR_STEPS.length - 1 ? (
-          <button className="secondary-button" type="button" onClick={() => onStep(step + 1)}>
+          <button className="text-button" type="button" onClick={() => onStep(step + 1)}>
             Next
             <ChevronRight size={16} />
           </button>
         ) : (
-          <button className="primary-button" type="button" onClick={onFinish}>
+          <button className="text-button" type="button" onClick={onFinish}>
             Back to my board
           </button>
         )}
@@ -123,6 +119,7 @@ export function TourBar({
           <X size={17} />
         </button>
       </div>
+      {current.showOnMobile ? <p className="tour-mobile-description">{current.body}</p> : null}
     </aside>
   );
 }

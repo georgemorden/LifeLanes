@@ -19,3 +19,14 @@ life-lanes-*.json
 *.pfx
 *.sqlite*
 *.db
+.envrc
+.npmrc
+.netrc
+.aws/
+.ssh/
+backups/
+exports/
+storage-state*.json
+auth-state*.json
+*.har
+*.trace.zip

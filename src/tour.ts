@@ -5,6 +5,8 @@ export type TourStep = {
   body: string;
   view: ViewId;
   target: string;
+  showOnMobile?: boolean;
+  boardAction?: "expand";
 };
 
 export const TOUR_STEPS: TourStep[] = [
@@ -16,9 +18,17 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     title: "Move things forward",
-    body: "Open an item to update it or move it.",
+    body: "Click an item to update or move it.",
     view: "board",
     target: ".note-card",
+  },
+  {
+    title: "Expand your lanes",
+    body: "More categories are open below. Choose Life Lane from the + menu to create your own.",
+    view: "board",
+    target: ".board-footer-actions",
+    showOnMobile: true,
+    boardAction: "expand",
   },
   {
     title: "Brain Dump",

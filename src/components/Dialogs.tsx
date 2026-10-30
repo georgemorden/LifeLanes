@@ -102,6 +102,8 @@ function DialogFrame({
   wide?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -110,6 +112,19 @@ function DialogFrame({
       ? document.activeElement
       : null;
     const dialog = dialogRef.current;
+    const background: Array<{ element: HTMLElement; wasInert: boolean }> = [];
+    let branch = dialog?.parentElement;
+    while (branch && branch !== document.body) {
+      for (const sibling of Array.from(branch.parentElement?.children ?? [])) {
+        if (sibling !== branch && sibling instanceof HTMLElement) {
+          background.push({ element: sibling, wasInert: sibling.inert });
+          sibling.inert = true;
+        }
+      }
+      branch = branch.parentElement;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const focusableSelector = [
       "button:not([disabled])",
       "input:not([disabled])",
@@ -120,7 +135,8 @@ function DialogFrame({
     ].join(",");
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        event.preventDefault();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !dialog) return;
@@ -152,9 +168,11 @@ function DialogFrame({
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", onKeyDown);
+      background.forEach(({ element, wasInert }) => { element.inert = wasInert; });
+      document.body.style.overflow = previousOverflow;
       previousFocus?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div
@@ -318,6 +336,7 @@ export function ItemDialog({
           <span>Title</span>
           <input
             value={draft.title}
+            maxLength={240}
             onChange={(event) => setDraft({ ...draft, title: event.target.value })}
             placeholder="What is moving?"
             aria-label="Item title"
@@ -329,6 +348,7 @@ export function ItemDialog({
           <span>Notes</span>
           <textarea
             value={draft.note}
+            maxLength={20_000}
             onChange={(event) => setDraft({ ...draft, note: event.target.value })}
             placeholder="Useful context, next step, or why it matters"
             aria-label="Item notes"
@@ -481,11 +501,11 @@ export function TriageDialog({
       <form className="item-form" onSubmit={submit}>
         <label className="field field-title">
           <span>Title</span>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Triage title" data-dialog-autofocus />
+          <input value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Triage title" maxLength={240} data-dialog-autofocus />
         </label>
         <label className="field">
           <span>Notes</span>
-          <textarea value={note} onChange={(event) => setNote(event.target.value)} aria-label="Triage notes" rows={4} />
+          <textarea value={note} onChange={(event) => setNote(event.target.value)} aria-label="Triage notes" maxLength={20_000} rows={4} />
         </label>
         <div className="field-grid">
           <label className="field">
@@ -609,6 +629,7 @@ function EditableNameRow({
       </span>
       <input
         value={name}
+        maxLength={80}
         onChange={(event) => setName(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
@@ -616,8 +637,9 @@ function EditableNameRow({
             event.currentTarget.blur();
           }
           if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
             setName(value);
-            event.currentTarget.blur();
           }
         }}
         aria-label={`Rename ${value}`}
@@ -853,7 +875,7 @@ export function ManageBoardDialog({
   const confirmImport = (mode: "replace" | "merge") => {
     if (!pendingImport) return;
     const imported = onImport(pendingImport.value, mode);
-    setImportMessage(imported ? "Backup imported." : "That backup could not be imported.");
+    setImportMessage(imported ? "Backup imported." : "This merge exceeds the board limit. Export your current board before replacing it with this backup.");
     if (imported) setPendingImport(null);
   };
 
@@ -880,6 +902,7 @@ export function ManageBoardDialog({
           <div
             className={`manage-accordion-content${openSection === "lanes" ? " is-open" : ""}`}
             aria-hidden={openSection !== "lanes"}
+            {...(openSection !== "lanes" ? { inert: "" } : {})}
           >
             <DndContext
               sensors={laneSensors}
@@ -925,6 +948,7 @@ export function ManageBoardDialog({
           <div
             className={`manage-accordion-content${openSection === "add" ? " is-open" : ""}`}
             aria-hidden={openSection !== "add"}
+            {...(openSection !== "add" ? { inert: "" } : {})}
           >
             <form className="manage-add-form lane-add-form" onSubmit={addLane}>
               <div
@@ -954,6 +978,7 @@ export function ManageBoardDialog({
                 <span>Life Lane name</span>
                 <input
                   ref={laneNameInputRef}
+                  maxLength={80}
                   value={laneName}
                   onChange={(event) => setLaneName(event.target.value)}
                   placeholder="e.g. Home"
@@ -988,6 +1013,7 @@ export function ManageBoardDialog({
           <div
             className={`manage-accordion-content${openSection === "states" ? " is-open" : ""}`}
             aria-hidden={openSection !== "states"}
+            {...(openSection !== "states" ? { inert: "" } : {})}
           >
             <DndContext
               sensors={laneSensors}
@@ -1031,6 +1057,7 @@ export function ManageBoardDialog({
                 <span>State name</span>
                 <input
                   ref={columnNameInputRef}
+                  maxLength={80}
                   value={columnName}
                   onChange={(event) => setColumnName(event.target.value)}
                   placeholder="e.g. Next"

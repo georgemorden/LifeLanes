@@ -139,7 +139,7 @@ function normalizeColumns(value: unknown) {
     };
   }
 
-  const candidates = value.slice(0, MAX_COLUMNS).filter(isRecord);
+  const candidates = value.filter(isRecord);
   const hasExplicitKinds = candidates.some(
     (column) => column.kind === "active" || column.kind === "achievement",
   );
@@ -178,7 +178,6 @@ function normalizeColumns(value: unknown) {
   });
 
   if (!columns.some((column) => column.kind === "active")) {
-    if (columns.length >= MAX_COLUMNS) columns.pop();
     const fallback = createDefaultColumns().find((column) => column.id === "todo")!;
     fallback.id = uniqueId("column", fallback.id, usedIds);
     columns.unshift(fallback);
@@ -186,7 +185,6 @@ function normalizeColumns(value: unknown) {
   }
 
   if (!columns.some((column) => column.kind === "achievement")) {
-    if (columns.length >= MAX_COLUMNS) columns.pop();
     const achievement = createDefaultColumns().find((column) => column.kind === "achievement")!;
     achievement.id = uniqueId("column", achievement.id, usedIds);
     columns.push(achievement);
@@ -203,7 +201,7 @@ function normalizeLanes(value: unknown, savedVersion: number) {
 
   const usedIds = new Set<string>();
   const idMap = new Map<string, string>();
-  const lanes = value.slice(0, MAX_LANES).reduce<LifeLane[]>((result, candidate, index) => {
+  const lanes = value.reduce<LifeLane[]>((result, candidate, index) => {
     if (!isRecord(candidate)) return result;
     const name = cleanText(candidate.name, MAX_NAME_LENGTH);
     if (!name) return result;
@@ -230,7 +228,7 @@ function normalizeLanes(value: unknown, savedVersion: number) {
 function normalizeDrafts(value: unknown) {
   if (!Array.isArray(value)) return [];
   const usedIds = new Set<string>();
-  return value.slice(0, MAX_DRAFTS).reduce<DraftNote[]>((result, candidate) => {
+  return value.reduce<DraftNote[]>((result, candidate) => {
     if (!isRecord(candidate)) return result;
     const legacyText = cleanText(candidate.text, MAX_DRAFT_LENGTH);
     const legacyLines = legacyText.split(/\r?\n/);
@@ -286,7 +284,7 @@ function normalizeItems(
   const columnIds = new Set(columns.map((column) => column.id));
   const usedIds = new Set<string>();
 
-  return value.slice(0, MAX_ITEMS).reduce<BoardItem[]>((result, candidate) => {
+  return value.reduce<BoardItem[]>((result, candidate) => {
     if (!isRecord(candidate)) return result;
     const title = cleanText(candidate.title, MAX_TITLE_LENGTH);
     if (!title) return result;
@@ -324,6 +322,9 @@ export function normalizeState(value: unknown): BoardState | null {
   ) {
     return null;
   }
+  if (
+    typeof value.schemaVersion === "number" && value.schemaVersion > BOARD_SCHEMA_VERSION
+  ) return null;
 
   const savedDefaultLaneVersion =
     typeof value.defaultLaneVersion === "number" ? value.defaultLaneVersion : 0;
@@ -362,8 +363,13 @@ export function normalizeState(value: unknown): BoardState | null {
 }
 
 export function inspectImport(value: unknown): ImportPreview | null {
+  if (!isRecord(value) ||
+      (Array.isArray(value.lanes) && value.lanes.length > MAX_LANES) ||
+      (Array.isArray(value.items) && value.items.length > MAX_ITEMS) ||
+      (Array.isArray(value.drafts) && value.drafts.length > MAX_DRAFTS) ||
+      (Array.isArray(value.columns) && value.columns.length > MAX_COLUMNS)) return null;
   const state = normalizeState(value);
-  if (!state) return null;
+  if (!state || state.columns.length > MAX_COLUMNS || state.lanes.length > MAX_LANES) return null;
   return {
     state: { ...state, preset: "draft", updatedAt: nowStamp() },
     summary: {
@@ -375,7 +381,17 @@ export function inspectImport(value: unknown): ImportPreview | null {
   };
 }
 
-export function mergeStates(current: BoardState, incoming: BoardState): BoardState {
+export function mergeStates(current: BoardState, incoming: BoardState): BoardState | null {
+  const laneNames = new Set(current.lanes.map((lane) => lane.name.toLowerCase()));
+  const columnNames = new Set(current.columns.filter((column) => column.kind === "active").map((column) => column.title.toLowerCase()));
+  const initialLaneNameCount = laneNames.size;
+  const initialColumnNameCount = columnNames.size;
+  incoming.lanes.forEach((lane) => laneNames.add(lane.name.toLowerCase()));
+  incoming.columns.filter((column) => column.kind === "active").forEach((column) => columnNames.add(column.title.toLowerCase()));
+  if (current.lanes.length + laneNames.size - initialLaneNameCount > MAX_LANES ||
+      current.columns.length + columnNames.size - initialColumnNameCount > MAX_COLUMNS ||
+      current.drafts.length + incoming.drafts.length > MAX_DRAFTS ||
+      current.items.length + incoming.items.length > MAX_ITEMS) return null;
   const lanes = [...current.lanes];
   const laneIdMap = new Map<string, string>();
   const laneByName = new Map(lanes.map((lane) => [lane.name.toLowerCase(), lane]));
@@ -383,10 +399,6 @@ export function mergeStates(current: BoardState, incoming: BoardState): BoardSta
     const existing = laneByName.get(lane.name.toLowerCase());
     if (existing) {
       laneIdMap.set(lane.id, existing.id);
-      return;
-    }
-    if (lanes.length >= MAX_LANES) {
-      laneIdMap.set(lane.id, lanes[0].id);
       return;
     }
     const added = { ...lane, id: createId("lane"), createdAt: nowStamp() };
@@ -413,13 +425,6 @@ export function mergeStates(current: BoardState, incoming: BoardState): BoardSta
       columnIdMap.set(column.id, existing.id);
       return;
     }
-    if (columns.length >= MAX_COLUMNS) {
-      columnIdMap.set(
-        column.id,
-        columns.find((candidate) => candidate.kind === "active")!.id,
-      );
-      return;
-    }
     const added = { ...column, id: createId("column"), createdAt: nowStamp() };
     columns.splice(columns.indexOf(currentAchievement), 0, added);
     activeByTitle.set(added.title.toLowerCase(), added);
@@ -433,7 +438,7 @@ export function mergeStates(current: BoardState, incoming: BoardState): BoardSta
       ...draft,
       id: existingDraftIds.has(draft.id) ? createId("draft") : draft.id,
     })),
-  ].slice(0, MAX_DRAFTS);
+  ];
   const existingItemIds = new Set(current.items.map((item) => item.id));
   const items = [
     ...current.items,
@@ -444,7 +449,7 @@ export function mergeStates(current: BoardState, incoming: BoardState): BoardSta
       column: columnIdMap.get(item.column) ?? columns.find((column) => column.kind === "active")!.id,
       updatedAt: nowStamp(),
     })),
-  ].slice(0, MAX_ITEMS);
+  ];
 
   return {
     schemaVersion: BOARD_SCHEMA_VERSION,

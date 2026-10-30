@@ -59,6 +59,7 @@ type BoardMatrixProps = {
   onManageBoard: (target?: "add" | "lanes" | "states" | "backup") => void;
   onChangePreset: (preset: "draft" | "demo") => void;
   focusOnMount?: boolean;
+  tourAction?: "expand";
 };
 
 type ItemDragData = {
@@ -138,15 +139,42 @@ function isVisibleBoardTarget(element: HTMLElement) {
 function BoardCreateMenu({
   onAddLane,
   onAddState,
+  guidedOpen = false,
+  label = "Add to board",
 }: {
   onAddLane: () => void;
   onAddState: () => void;
+  guidedOpen?: boolean;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [guidedMenuTop, setGuidedMenuTop] = useState<number>();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const laneRef = useRef<HTMLButtonElement | null>(null);
   const stateRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    setOpen(guidedOpen);
+  }, [guidedOpen]);
+
+  useLayoutEffect(() => {
+    if (!open || !guidedOpen || !window.matchMedia("(max-width: 720px)").matches) {
+      setGuidedMenuTop(undefined);
+      return;
+    }
+    const guide = document.querySelector<HTMLElement>(".tour-bar");
+    if (!guide) return;
+    const positionMenu = () => setGuidedMenuTop(Math.ceil(guide.getBoundingClientRect().bottom + 8));
+    positionMenu();
+    const observer = new ResizeObserver(positionMenu);
+    observer.observe(guide);
+    window.addEventListener("resize", positionMenu);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", positionMenu);
+    };
+  }, [guidedOpen, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -174,6 +202,7 @@ function BoardCreateMenu({
   }, [open]);
 
   const choose = (action: () => void) => {
+    triggerRef.current?.focus({ preventScroll: true });
     setOpen(false);
     action();
   };
@@ -184,11 +213,11 @@ function BoardCreateMenu({
         ref={triggerRef}
         className={`board-create-trigger${open ? " is-open" : ""}`}
         type="button"
-        aria-label="Add to board"
+        aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="board-create-options"
-        title="Add to board"
+        title={label}
         onClick={() => setOpen((value) => !value)}
         onKeyDown={(event) => {
           if (event.key !== "ArrowDown") return;
@@ -200,7 +229,13 @@ function BoardCreateMenu({
       </button>
 
       {open ? (
-        <div id="board-create-options" className="board-create-popover" role="menu" aria-label="Add to board">
+        <div
+          id="board-create-options"
+          className="board-create-popover"
+          role="menu"
+          aria-label="Add to board"
+          style={guidedMenuTop === undefined ? undefined : { position: "fixed", top: guidedMenuTop, right: 10, left: "auto" }}
+        >
           <button
             ref={laneRef}
             type="button"
@@ -405,7 +440,7 @@ function MatrixCell({
       </div>
 
       <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-        <div className="matrix-cell-items" aria-hidden={collapsed}>
+        <div className="matrix-cell-items" aria-hidden={collapsed} {...(collapsed ? { inert: "" } : {})}>
           <div className="matrix-cell-stack">
             {items.map((item) => (
               <SortableNoteCard
@@ -552,6 +587,7 @@ export function BoardMatrix({
   onManageBoard,
   onChangePreset,
   focusOnMount = true,
+  tourAction,
 }: BoardMatrixProps) {
   const columns = useMemo(() => activeColumns(state.columns), [state.columns]);
   const activeColumnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
@@ -561,14 +597,14 @@ export function BoardMatrix({
   );
   const initialPreferences = useMemo(() => loadBoardPreferences(state.preset), []);
   const [preferencePreset, setPreferencePreset] = useState(state.preset);
-  const [showAllLanes, setShowAllLanes] = useState(initialPreferences.showAllLanes);
+  const [showAllLanes, setShowAllLanes] = useState(false);
+  const laneVisibilityRef = useRef(new Map<string, boolean>());
   const [collapsedLaneIds, setCollapsedLaneIds] = useState<Set<string>>(
     () => new Set(initialPreferences.collapsedLaneIds),
   );
   const [overviewExpandedLaneIds, setOverviewExpandedLaneIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [demoOverviewDismissed, setDemoOverviewDismissed] = useState(false);
   const [mobileColumn, setMobileColumn] = useState(
     initialPreferences.mobileColumn || columns[0]?.id || "",
   );
@@ -578,10 +614,19 @@ export function BoardMatrix({
     () => window.matchMedia("(max-width: 720px)").matches,
   );
   const [customizeMenuOpen, setCustomizeMenuOpen] = useState(false);
+  const customizeTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [draggedItem, setDraggedItem] = useState<BoardItem | null>(null);
   const boardRef = useRef<HTMLElement | null>(null);
   const pendingFocusRef = useRef<BoardFocusTarget | null>(null);
   const lastBoardColumnRef = useRef(columns[0]?.id ?? "");
+
+  useEffect(() => {
+    if (state.preset !== "demo" || tourAction !== "expand") return;
+    setShowAllLanes(true);
+    setSearchQuery("");
+    setPriorityFilter("all");
+    setCollapsedLaneIds(new Set());
+  }, [state.preset, tourAction]);
 
   useEffect(() => {
     const mobileQuery = window.matchMedia("(max-width: 720px)");
@@ -595,11 +640,12 @@ export function BoardMatrix({
   useLayoutEffect(() => {
     if (preferencePreset === state.preset) return;
     const preferences = loadBoardPreferences(state.preset);
-    setShowAllLanes(preferences.showAllLanes);
-    setCollapsedLaneIds(new Set(preferences.collapsedLaneIds));
+    laneVisibilityRef.current.set(preferencePreset, showAllLanes);
+    setShowAllLanes(state.preset === "demo" ? false : laneVisibilityRef.current.get(state.preset) ?? false);
+    setCollapsedLaneIds(new Set(state.preset === "demo" ? [] : preferences.collapsedLaneIds));
     setMobileColumn(preferences.mobileColumn || columns[0]?.id || "");
     setPreferencePreset(state.preset);
-  }, [columns, preferencePreset, state.preset]);
+  }, [columns, preferencePreset, showAllLanes, state.preset]);
 
   useEffect(() => {
     if (preferencePreset !== state.preset) return;
@@ -612,11 +658,7 @@ export function BoardMatrix({
 
   useEffect(() => {
     setOverviewExpandedLaneIds(new Set());
-  }, [showAllLanes, demoOverviewDismissed]);
-
-  useEffect(() => {
-    if (state.preset === "demo") setDemoOverviewDismissed(false);
-  }, [state.preset]);
+  }, [showAllLanes]);
 
   useEffect(() => {
     if (!columns.some((column) => column.id === mobileColumn)) {
@@ -677,16 +719,12 @@ export function BoardMatrix({
       ),
     [filteredItems, mobileColumn],
   );
-  const demoOverview = state.preset === "demo" && !demoOverviewDismissed && !hasFilters;
   const displayedLanes = useMemo(() => {
     const coreLaneNames = new Set(CORE_DEFAULT_LANES.map((name) => name.toLowerCase()));
-    if (demoOverview) {
-      const demoLanes = state.lanes.filter((lane) =>
-        coreLaneNames.has(lane.name.toLowerCase()),
-      );
-      return isMobileLayout
-        ? demoLanes.filter((lane) => mobileActiveLaneIds.has(lane.id))
-        : demoLanes;
+    if (state.preset === "demo" && !hasFilters) {
+      return showAllLanes
+        ? state.lanes
+        : state.lanes.filter((lane) => coreLaneNames.has(lane.name.toLowerCase()));
     }
     if (isMobileLayout) {
       if (showAllLanes && !hasFilters) return state.lanes;
@@ -702,7 +740,7 @@ export function BoardMatrix({
     return state.lanes.filter(
       (lane) => coreLaneNames.has(lane.name.toLowerCase()) || activeLaneIds.has(lane.id),
     );
-  }, [activeLaneIds, demoOverview, hasFilters, isMobileLayout, mobileActiveLaneIds, showAllLanes, state.lanes]);
+  }, [activeLaneIds, hasFilters, isMobileLayout, mobileActiveLaneIds, showAllLanes, state.lanes, state.preset]);
 
   const hiddenLaneCount = Math.max(0, state.lanes.length - displayedLanes.length);
   const compactLaneOverview =
@@ -1175,12 +1213,12 @@ export function BoardMatrix({
 
   const gridStyle = { "--column-count": columns.length } as CSSProperties;
   const toggleLaneOverview = () => {
-    if (state.preset === "demo" && !demoOverviewDismissed) {
-      setDemoOverviewDismissed(true);
-      setShowAllLanes(true);
-      return;
-    }
     setShowAllLanes((value) => !value);
+  };
+  const openCustomization = (target: "lanes" | "states" | "backup") => {
+    customizeTriggerRef.current?.focus({ preventScroll: true });
+    setCustomizeMenuOpen(false);
+    onManageBoard(target);
   };
 
   return (
@@ -1206,6 +1244,9 @@ export function BoardMatrix({
               className={`${stateTone(index)}${mobileColumn === column.id ? " active" : ""}`}
               type="button"
               role="tab"
+              id={`mobile-state-${column.id}`}
+              aria-controls="mobile-state-panel"
+              tabIndex={mobileColumn === column.id ? 0 : -1}
               aria-label={`${column.title} ${counts.get(column.id) ?? 0}`}
               aria-selected={mobileColumn === column.id}
               data-workspace-entry={mobileColumn === column.id ? "" : undefined}
@@ -1230,6 +1271,20 @@ export function BoardMatrix({
       {isMobileLayout
         ? createPortal(
             <div className="mobile-board-actions">
+              <BoardCreateMenu
+                label="Add a Life Lane"
+                guidedOpen={tourAction === "expand"}
+                onAddLane={() => onManageBoard("add")}
+                onAddState={() => onManageBoard("states")}
+              />
+              <button
+                className="icon-button mobile-customize-button"
+                type="button"
+                aria-label="Customize board"
+                onClick={() => onManageBoard()}
+              >
+                <Settings2 size={17} aria-hidden="true" />
+              </button>
               <button
                 className={state.preset === "demo" ? "mobile-demo-button active" : "mobile-demo-button"}
                 type="button"
@@ -1252,6 +1307,9 @@ export function BoardMatrix({
         onDragEnd={handleDragEnd}
       >
         <div
+          id="mobile-state-panel"
+          role={isMobileLayout ? "tabpanel" : undefined}
+          aria-labelledby={isMobileLayout ? `mobile-state-${mobileColumn}` : undefined}
           className={`matrix-scroll${
             isMobileLayout && !displayedLanes.length && !hasFilters
               ? " is-mobile-empty"
@@ -1263,6 +1321,7 @@ export function BoardMatrix({
               <Rows3 className="lane-heading-symbol" size={15} aria-hidden="true" />
               <span className="lane-heading-label">Life lanes</span>
               <BoardCreateMenu
+                guidedOpen={tourAction === "expand" && !isMobileLayout}
                 onAddLane={() => onManageBoard("add")}
                 onAddState={() => onManageBoard("states")}
               />
@@ -1367,44 +1426,46 @@ export function BoardMatrix({
       </DndContext>
 
       <footer className="board-footer">
-        {!isMobileLayout ? (
-          <div className="board-footer-actions">
-            {!hasFilters && (hiddenLaneCount > 0 || showAllLanes) ? (
-              <button className="text-button" type="button" onClick={toggleLaneOverview}>
-                <Rows3 size={16} />
-                {showAllLanes ? "Focus on active lanes" : "Show all lanes"}
-              </button>
-            ) : null}
-            <label className="board-search">
-              <Search size={15} aria-hidden="true" />
-              <span className="sr-only">Search items</span>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search items"
-              />
-              {searchQuery ? (
-                <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search">
-                  <X size={14} />
-                </button>
-              ) : null}
-            </label>
-            <label className="board-priority-filter">
-              <span className="sr-only">Filter by priority</span>
-              <select
-                value={priorityFilter}
-                onChange={(event) => setPriorityFilter(event.target.value as ItemPriority | "all")}
-                aria-label="Filter by priority"
-              >
-                <option value="all">All priorities</option>
-                <option value="high">High priority</option>
-                <option value="medium">Medium priority</option>
-                <option value="low">Low priority</option>
-              </select>
-            </label>
-          </div>
-        ) : null}
+        <div className="board-footer-actions">
+          {!hasFilters && (hiddenLaneCount > 0 || showAllLanes) ? (
+            <button className="text-button" type="button" onClick={toggleLaneOverview}>
+              <Rows3 size={16} />
+              {showAllLanes ? (state.preset === "demo" ? "Show main lanes" : "Focus on active lanes") : "Show all lanes"}
+            </button>
+          ) : null}
+          {!isMobileLayout ? (
+            <>
+              <label className="board-search">
+                <Search size={15} aria-hidden="true" />
+                <span className="sr-only">Search items</span>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search items"
+                />
+                {searchQuery ? (
+                  <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search">
+                    <X size={14} />
+                  </button>
+                ) : null}
+              </label>
+              <label className="board-priority-filter">
+                <span className="sr-only">Filter by priority</span>
+                <select
+                  value={priorityFilter}
+                  onChange={(event) => setPriorityFilter(event.target.value as ItemPriority | "all")}
+                  aria-label="Filter by priority"
+                >
+                  <option value="all">All priorities</option>
+                  <option value="high">High priority</option>
+                  <option value="medium">Medium priority</option>
+                  <option value="low">Low priority</option>
+                </select>
+              </label>
+            </>
+          ) : null}
+        </div>
         {!isMobileLayout ? (
           <div className="board-footer-tools">
             <button
@@ -1419,18 +1480,19 @@ export function BoardMatrix({
             <div className="desktop-customize-menu">
             {customizeMenuOpen ? (
               <div className="customize-menu" role="menu" aria-label="Customize board">
-                <button type="button" role="menuitem" onClick={() => { setCustomizeMenuOpen(false); onManageBoard("lanes"); }}>
+                <button type="button" role="menuitem" onClick={() => openCustomization("lanes")}>
                   Edit Life Lanes
                 </button>
-                <button type="button" role="menuitem" onClick={() => { setCustomizeMenuOpen(false); onManageBoard("states"); }}>
+                <button type="button" role="menuitem" onClick={() => openCustomization("states")}>
                   Edit States
                 </button>
-                <button type="button" role="menuitem" onClick={() => { setCustomizeMenuOpen(false); onManageBoard("backup"); }}>
+                <button type="button" role="menuitem" onClick={() => openCustomization("backup")}>
                   Backup Life Lanes
                 </button>
               </div>
             ) : null}
             <button
+              ref={customizeTriggerRef}
               className="text-button desktop-customize-button"
               type="button"
               onClick={() => setCustomizeMenuOpen((open) => !open)}

@@ -1,5 +1,6 @@
-const CACHE_NAME = "life-lanes-shell-v6";
 const APP_BASE = new URL("./", self.location.href);
+const CACHE_PREFIX = `life-lanes-shell:${APP_BASE.pathname}:`;
+const CACHE_NAME = `${CACHE_PREFIX}v7`;
 const appUrl = (path = "") => new URL(path, APP_BASE).toString();
 const APP_ROOT = appUrl();
 const APP_SHELL = [
@@ -15,10 +16,19 @@ const APP_SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting()),
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const response = await fetch(APP_ROOT, { cache: "reload" });
+      if (!response.ok) throw new Error("The app shell could not be downloaded");
+      const html = await response.clone().text();
+      const assets = [...html.matchAll(/(?:src|href)=["']([^"']+\.(?:js|css))["']/g)]
+        .map((match) => new URL(match[1], APP_ROOT))
+        .filter((url) => url.origin === APP_BASE.origin && url.pathname.startsWith(`${APP_BASE.pathname}assets/`));
+      await cache.addAll([...APP_SHELL.filter((url) => url !== APP_ROOT && url !== appUrl("index.html")), ...assets.map(String)]);
+      await cache.put(APP_ROOT, response.clone());
+      await cache.put(appUrl("index.html"), response);
+      await self.skipWaiting();
+    })(),
   );
 });
 
@@ -26,7 +36,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) =>
+        key !== CACHE_NAME && (key.startsWith(CACHE_PREFIX) || /^life-lanes-shell-v\d+$/.test(key))
+      ).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });
@@ -37,33 +49,38 @@ self.addEventListener("fetch", (event) => {
   }
 
   const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin) {
+  if (requestUrl.origin !== self.location.origin || !requestUrl.pathname.startsWith(APP_BASE.pathname)) {
     return;
   }
 
-  const relativePath = requestUrl.pathname.startsWith(APP_BASE.pathname)
-    ? requestUrl.pathname.slice(APP_BASE.pathname.length)
-    : requestUrl.pathname;
+  const relativePath = requestUrl.pathname.slice(APP_BASE.pathname.length);
 
   if (
     relativePath.startsWith("@vite") ||
     relativePath.startsWith("src/") ||
-    relativePath.includes("__vite")
+    relativePath.includes("__vite") || requestUrl.search
   ) {
     return;
   }
 
-  if (event.request.mode === "navigate") {
+  if (event.request.mode === "navigate" && (relativePath === "" || relativePath === "index.html")) {
     event.respondWith(
       fetch(event.request).catch(async () => {
-        return (await caches.match(APP_ROOT)) ?? caches.match(appUrl("index.html"));
+        const cache = await caches.open(CACHE_NAME);
+        return (await cache.match(APP_ROOT)) ?? cache.match(appUrl("index.html"));
       }),
     );
     return;
   }
 
+  const isShellAsset = APP_SHELL.includes(requestUrl.href) || relativePath.startsWith("assets/");
+  if (!isShellAsset) return;
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // These are public, same-origin static assets. Module requests can add an
+      // Origin header that was absent during precaching (Vary: Origin).
+      const cached = await cache.match(event.request, { ignoreVary: true });
       if (cached) {
         return cached;
       }
@@ -73,8 +90,7 @@ self.addEventListener("fetch", (event) => {
           return response;
         }
 
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+        event.waitUntil(cache.put(event.request, response.clone()).catch(() => {}));
         return response;
       });
     }),

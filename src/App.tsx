@@ -442,11 +442,7 @@ export default function App() {
     if (tourStep === null) return;
 
     const frame = window.requestAnimationFrame(() => {
-      document
-        .querySelectorAll(".tour-highlight")
-        .forEach((element) => element.classList.remove("tour-highlight"));
       const target = document.querySelector(TOUR_STEPS[tourStep].target);
-      target?.classList.add("tour-highlight");
       if (target && TOUR_STEPS[tourStep].target !== ".lane-matrix") {
         target.scrollIntoView({
           behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -459,9 +455,6 @@ export default function App() {
 
     return () => {
       window.cancelAnimationFrame(frame);
-      document
-        .querySelectorAll(".tour-highlight")
-        .forEach((element) => element.classList.remove("tour-highlight"));
     };
   }, [activeView, tourStep]);
 
@@ -1002,6 +995,7 @@ export default function App() {
           onManageBoard={(target) => openManageBoard(target ?? "overview")}
           onChangePreset={changePreset}
           focusOnMount={false}
+          tourAction={tourStep === null ? undefined : TOUR_STEPS[tourStep].boardAction}
         />
       ) : null}
 
